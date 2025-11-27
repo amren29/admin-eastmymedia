@@ -3,7 +3,6 @@ import { getFirestore, collection, doc, setDoc } from "firebase/firestore";
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
-import { BUNTING_ROUTES } from '../../src/lib/bunting';
 import { VOOH_PACKAGES } from '../../src/lib/voohPackages';
 
 // Load environment variables from .env.local
@@ -55,48 +54,6 @@ async function seedMedia() {
         console.log("Billboards JSON not found, skipping...");
     }
 
-    // 2. Import Buntings
-    console.log(`Found ${BUNTING_ROUTES.length} bunting routes to import.`);
-    const buntingImages = [
-        'https://images.unsplash.com/photo-1568992687947-868a62a9f521?q=80&w=800&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=80&w=800&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=800&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=800&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1514924013411-cbf25faa35bb?q=80&w=800&auto=format&fit=crop',
-    ];
-
-    for (let i = 0; i < BUNTING_ROUTES.length; i++) {
-        const route = BUNTING_ROUTES[i];
-        const docId = `bunting-${route.id}`;
-
-        const buntingData = {
-            name: `${route.roadName} - Bunting Zone`,
-            location: route.name,
-            region: 'Kota Kinabalu',
-            type: 'Bunting', // Custom type
-            price: 800 + (i * 100),
-            traffic: 'High',
-            trafficDaily: 8000 + (i * 1000),
-            size: '2ft x 5ft',
-            width: 2,
-            height: 5,
-            image: buntingImages[i % buntingImages.length],
-            available: true,
-            isBunting: true,
-            routeId: route.id,
-            coordinates: route.startCoord, // Store start coord for map
-            latitude: route.startCoord[1],
-            longitude: route.startCoord[0],
-            updatedAt: new Date().toISOString(),
-        };
-
-        try {
-            await setDoc(doc(db, 'billboards', docId), buntingData, { merge: true });
-            count++;
-        } catch (error) {
-            console.error(`Error importing bunting ${route.id}:`, error);
-        }
-    }
 
     // 3. Import VOOH Packages
     console.log(`Found ${VOOH_PACKAGES.length} VOOH packages to import.`);
