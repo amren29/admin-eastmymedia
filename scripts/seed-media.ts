@@ -1,0 +1,139 @@
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore, collection, doc, setDoc } from "firebase/firestore";
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+import { BUNTING_ROUTES } from '../../src/lib/bunting';
+import { VOOH_PACKAGES } from '../../src/lib/voohPackages';
+
+// Load environment variables from .env.local
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+
+const firebaseConfig = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
+
+// Initialize Firebase
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const db = getFirestore(app);
+
+const billboardsPath = path.join(process.cwd(), '../data/billboards.json');
+
+async function seedMedia() {
+    let count = 0;
+
+    // 1. Import Billboards (from JSON)
+    if (fs.existsSync(billboardsPath)) {
+        const data = JSON.parse(fs.readFileSync(billboardsPath, 'utf-8'));
+        console.log(`Found ${data.length} billboards to import.`);
+
+        for (const item of data) {
+            try {
+                const docId = item.id || doc(collection(db, 'billboards')).id;
+                const billboardData = {
+                    ...item,
+                    price: Number(item.price) || 0,
+                    width: Number(item.width) || 0,
+                    height: Number(item.height) || 0,
+                    updatedAt: new Date().toISOString(),
+                };
+                delete billboardData.id;
+
+                await setDoc(doc(db, 'billboards', docId), billboardData, { merge: true });
+                count++;
+                if (count % 10 === 0) console.log(`Imported ${count} billboards...`);
+            } catch (error) {
+                console.error(`Error importing billboard ${item.id}:`, error);
+            }
+        }
+    } else {
+        console.log("Billboards JSON not found, skipping...");
+    }
+
+    // 2. Import Buntings
+    console.log(`Found ${BUNTING_ROUTES.length} bunting routes to import.`);
+    const buntingImages = [
+        'https://images.unsplash.com/photo-1568992687947-868a62a9f521?q=80&w=800&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=80&w=800&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=800&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=800&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1514924013411-cbf25faa35bb?q=80&w=800&auto=format&fit=crop',
+    ];
+
+    for (let i = 0; i < BUNTING_ROUTES.length; i++) {
+        const route = BUNTING_ROUTES[i];
+        const docId = `bunting-${route.id}`;
+
+        const buntingData = {
+            name: `${route.roadName} - Bunting Zone`,
+            location: route.name,
+            region: 'Kota Kinabalu',
+            type: 'Bunting', // Custom type
+            price: 800 + (i * 100),
+            traffic: 'High',
+            trafficDaily: 8000 + (i * 1000),
+            size: '2ft x 5ft',
+            width: 2,
+            height: 5,
+            image: buntingImages[i % buntingImages.length],
+            available: true,
+            isBunting: true,
+            routeId: route.id,
+            coordinates: route.startCoord, // Store start coord for map
+            latitude: route.startCoord[1],
+            longitude: route.startCoord[0],
+            updatedAt: new Date().toISOString(),
+        };
+
+        try {
+            await setDoc(doc(db, 'billboards', docId), buntingData, { merge: true });
+            count++;
+        } catch (error) {
+            console.error(`Error importing bunting ${route.id}:`, error);
+        }
+    }
+
+    // 3. Import VOOH Packages
+    console.log(`Found ${VOOH_PACKAGES.length} VOOH packages to import.`);
+    for (const pkg of VOOH_PACKAGES) {
+        const docId = pkg.id;
+
+        // Parse price string "RM 2,500" -> 2500
+        const priceNum = Number(pkg.price.replace(/[^0-9]/g, ''));
+
+        const voohData = {
+            name: pkg.name,
+            location: pkg.coverage,
+            region: 'Kota Kinabalu', // Default
+            type: 'VOOH',
+            price: priceNum,
+            traffic: pkg.trafficLevel,
+            trafficDaily: 50000, // Estimate
+            size: pkg.carCount, // Store car count in size for now
+            width: 0,
+            height: 0,
+            image: 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?q=80&w=800&auto=format&fit=crop', // Generic car/traffic image
+            available: true,
+            description: pkg.description,
+            duration: pkg.duration,
+            estimatedImpressions: pkg.estimatedImpressions,
+            updatedAt: new Date().toISOString(),
+        };
+
+        try {
+            await setDoc(doc(db, 'billboards', docId), voohData, { merge: true });
+            count++;
+        } catch (error) {
+            console.error(`Error importing VOOH ${pkg.id}:`, error);
+        }
+    }
+
+    console.log(`Successfully imported total ${count} items to Firestore.`);
+}
+
+seedMedia().catch(console.error);
