@@ -388,15 +388,46 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                             </select>
                         </div>
                         <div className="col-span-3">
-                            <label className="block text-sm font-medium text-gray-700">Image URL</label>
-                            <input
-                                type="text"
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                                value={formData.image}
-                                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                                placeholder="Enter image URL"
-                            />
-                            <p className="mt-1 text-xs text-gray-500">Enter the image URL for this media.</p>
+                            <label className="block text-sm font-medium text-gray-700">Image</label>
+                            <div className="mt-1 flex items-center space-x-4">
+                                {(previewUrl || formData.image) && (
+                                    <div className="relative h-20 w-20 rounded-md overflow-hidden border border-gray-200">
+                                        <img
+                                            src={previewUrl || formData.image}
+                                            alt="Preview"
+                                            className="h-full w-full object-cover"
+                                        />
+                                        {uploading && (
+                                            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center flex-col">
+                                                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mb-1"></div>
+                                                <span className="text-white text-xs font-bold">{Math.round(uploadProgress)}%</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleCancelUpload();
+                                                    }}
+                                                    className="mt-2 text-[10px] bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <div className="flex-1">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        disabled={uploading}
+                                        onChange={handleImageUpload}
+                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100"
+                                    />
+                                    {uploading && <p className="text-xs text-teal-600 mt-1">Uploading...</p>}
+                                </div>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">Recommended size: 1920x1080 for Digital, High Res for Print.</p>
                         </div>
                     </div>
                 </div>
