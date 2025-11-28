@@ -3,7 +3,7 @@ import { getFirestore, collection, doc, setDoc } from "firebase/firestore";
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
-import { VOOH_PACKAGES } from '../../src/lib/voohPackages';
+import { VOOH_PACKAGES } from '../src/lib/voohPackages';
 
 // Load environment variables from .env.local
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
