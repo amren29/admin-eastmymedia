@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { collection, addDoc, getDocs, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useModal } from '@/context/ModalContext';
 // import { Button } from '@/components/ui/button'; // Assuming you might have UI components, if not use standard HTML
 import { Search, Plus, X, MapPin, Check, ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
@@ -23,6 +24,7 @@ export default function CreateProposalPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState(1);
+    const { showAlert, showModal } = useModal();
 
     // Form State
     const [customers, setCustomers] = useState<any[]>([]);
@@ -98,11 +100,11 @@ export default function CreateProposalPage() {
 
     const handleSubmit = async () => {
         if (!clientName || !clientEmail) {
-            alert('Please fill in client details');
+            showAlert('Missing Information', 'Please fill in client details', 'warning');
             return;
         }
         if (selectedMedia.length === 0) {
-            alert('Please select at least one media item');
+            showAlert('Missing Information', 'Please select at least one media item', 'warning');
             return;
         }
 
@@ -150,7 +152,7 @@ export default function CreateProposalPage() {
             router.push('/proposals');
         } catch (error) {
             console.error("Error creating proposal:", error);
-            alert('Failed to create proposal');
+            showModal({ title: 'Error', message: 'Failed to create proposal', type: 'danger' });
         } finally {
             setLoading(false);
         }

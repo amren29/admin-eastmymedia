@@ -7,6 +7,7 @@ import { db } from '@/lib/firebase';
 import { ArrowLeft, Download, Trash2, Mail, Phone, Calendar, MapPin, CheckCircle, XCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { generatePDF } from '@/lib/generatePDF';
+import { useModal } from '@/context/ModalContext';
 
 interface Proposal {
     id: string;
@@ -29,6 +30,7 @@ export default function ProposalDetailPage() {
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [sending, setSending] = useState(false);
+    const { showConfirm, showAlert, showModal } = useModal();
 
     useEffect(() => {
         if (id) fetchProposal();
@@ -41,7 +43,7 @@ export default function ProposalDetailPage() {
             if (docSnap.exists()) {
                 setProposal({ id: docSnap.id, ...docSnap.data() } as Proposal);
             } else {
-                alert('Proposal not found');
+                showAlert('Not Found', 'Proposal not found', 'warning');
                 router.push('/proposals');
             }
         } catch (error) {
@@ -52,15 +54,15 @@ export default function ProposalDetailPage() {
     };
 
     const handleDelete = async () => {
-        if (confirm('Are you sure you want to delete this proposal?')) {
+        showConfirm('Delete Proposal', 'Are you sure you want to delete this proposal?', async () => {
             try {
                 await deleteDoc(doc(db, 'proposals', id));
                 router.push('/proposals');
             } catch (error) {
                 console.error("Error deleting proposal:", error);
-                alert('Failed to delete proposal');
+                showModal({ title: 'Error', message: 'Failed to delete proposal', type: 'danger' });
             }
-        }
+        }, 'danger');
     };
 
     const handleStatusChange = async (newStatus: 'new' | 'contacted' | 'closed') => {
@@ -90,7 +92,7 @@ export default function ProposalDetailPage() {
             await generatePDF(proposal, settings);
         } catch (error) {
             console.error("Error generating PDF:", error);
-            alert("Failed to generate PDF");
+            showModal({ title: 'Error', message: 'Failed to generate PDF', type: 'danger' });
         } finally {
             setGenerating(false);
         }
@@ -140,14 +142,14 @@ export default function ProposalDetailPage() {
 
             const data = await response.json();
             if (response.ok) {
-                alert("Email sent successfully!");
+                showAlert('Email Sent', 'Email sent successfully!', 'success');
             } else {
                 throw new Error(data.error || "Failed to send email");
             }
 
         } catch (error) {
             console.error("Error sending email:", error);
-            alert("Failed to send email: " + (error as Error).message);
+            showModal({ title: 'Error', message: "Failed to send email: " + (error as Error).message, type: 'danger' });
         } finally {
             setSending(false);
         }

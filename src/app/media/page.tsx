@@ -36,7 +36,7 @@ export default function MediaPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [importing, setImporting] = useState(false);
     const { userData } = useAuth();
-    const { showConfirm, showAlert } = useModal();
+    const { showConfirm, showAlert, showModal } = useModal();
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     const filteredMedia = media.filter(item => {
@@ -201,11 +201,19 @@ export default function MediaPage() {
                     await batch.commit();
                 }
 
-                alert(`Successfully imported ${count} items!`);
+                showModal({
+                    title: 'Import Successful',
+                    message: `Successfully imported ${count} items!`,
+                    type: 'success'
+                });
                 fetchMedia();
             } catch (error) {
                 console.error("Error importing file:", error);
-                alert('Failed to import file');
+                showModal({
+                    title: 'Import Failed',
+                    message: 'Failed to import file',
+                    type: 'danger'
+                });
             } finally {
                 setImporting(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';

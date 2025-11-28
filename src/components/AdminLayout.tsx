@@ -41,10 +41,14 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     );
 }
 
+import { ModalProvider } from '@/context/ModalContext';
+
 export function AdminLayout({ children }: { children: React.ReactNode }) {
     return (
         <AuthProvider>
-            <AdminLayoutContent>{children}</AdminLayoutContent>
+            <ModalProvider>
+                <AdminLayoutContent>{children}</AdminLayoutContent>
+            </ModalProvider>
         </AuthProvider>
     );
 }

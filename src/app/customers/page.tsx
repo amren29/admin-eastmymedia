@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useModal } from '@/context/ModalContext';
 import { Mail, Phone, User, Search, Plus, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 
@@ -19,6 +20,7 @@ export default function CustomersPage() {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
+    const { showConfirm, showAlert, showModal } = useModal();
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
@@ -44,49 +46,49 @@ export default function CustomersPage() {
     };
 
     const handleSync = async () => {
-        if (!confirm('This will scan all proposals and update the customer database. Continue?')) return;
+        showConfirm('Sync Customers', 'This will scan all proposals and update the customer database. Continue?', async () => {
+            setSyncing(true);
+            try {
+                const q = query(collection(db, 'proposals'), orderBy('createdAt', 'desc'));
+                const querySnapshot = await getDocs(q);
 
-        setSyncing(true);
-        try {
-            const q = query(collection(db, 'proposals'), orderBy('createdAt', 'desc'));
-            const querySnapshot = await getDocs(q);
+                const customerMap = new Map<string, any>();
 
-            const customerMap = new Map<string, any>();
+                querySnapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    const email = data.clientEmail?.toLowerCase();
 
-            querySnapshot.docs.forEach(doc => {
-                const data = doc.data();
-                const email = data.clientEmail?.toLowerCase();
-
-                if (email) {
-                    if (!customerMap.has(email)) {
-                        customerMap.set(email, {
-                            name: data.clientName,
-                            email: data.clientEmail,
-                            phone: data.clientPhone,
-                            lastActiveAt: data.createdAt,
-                            totalProposals: 1
-                        });
-                    } else {
-                        const existing = customerMap.get(email);
-                        existing.totalProposals += 1;
-                        // Keep the latest date (first one found due to desc sort)
+                    if (email) {
+                        if (!customerMap.has(email)) {
+                            customerMap.set(email, {
+                                name: data.clientName,
+                                email: data.clientEmail,
+                                phone: data.clientPhone,
+                                lastActiveAt: data.createdAt,
+                                totalProposals: 1
+                            });
+                        } else {
+                            const existing = customerMap.get(email);
+                            existing.totalProposals += 1;
+                            // Keep the latest date (first one found due to desc sort)
+                        }
                     }
+                });
+
+                // Batch writes would be better but for simplicity we'll loop
+                for (const [email, data] of customerMap.entries()) {
+                    await setDoc(doc(db, 'customers', email), data, { merge: true });
                 }
-            });
 
-            // Batch writes would be better but for simplicity we'll loop
-            for (const [email, data] of customerMap.entries()) {
-                await setDoc(doc(db, 'customers', email), data, { merge: true });
+                showAlert('Synced', `Synced ${customerMap.size} customers successfully!`, 'success');
+                fetchCustomers();
+            } catch (error) {
+                console.error("Error syncing customers:", error);
+                showModal({ title: 'Error', message: 'Failed to sync customers', type: 'danger' });
+            } finally {
+                setSyncing(false);
             }
-
-            alert(`Synced ${customerMap.size} customers successfully!`);
-            fetchCustomers();
-        } catch (error) {
-            console.error("Error syncing customers:", error);
-            alert('Failed to sync customers');
-        } finally {
-            setSyncing(false);
-        }
+        }, 'confirm');
     };
 
     const filteredCustomers = customers.filter(c =>

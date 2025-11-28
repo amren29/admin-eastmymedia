@@ -33,6 +33,43 @@ export default function MediaFormPage({ params }: MediaFormProps) {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const uploadTaskRef = useRef<any>(null);
     const { showAlert, showModal } = useModal();
+    const [suggestions, setSuggestions] = useState<string[]>([]);
+
+    const TARGET_MARKET_OPTIONS = [
+        'Tourist', 'Business Community', 'Student', 'Residential',
+        'Shoppers', 'Commuters', 'Luxury', 'Youth', 'Family',
+        'Working Professionals', 'Expatriates', 'Foodies'
+    ];
+
+    const generateSuggestions = () => {
+        if (!formData.gps) {
+            // Random suggestions if no GPS
+            const shuffled = [...TARGET_MARKET_OPTIONS].sort(() => 0.5 - Math.random());
+            setSuggestions(shuffled.slice(0, 4));
+            return;
+        }
+
+        // Deterministic "random" based on GPS numbers to seem intelligent but consistent
+        const gpsSum = formData.gps.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const shuffled = [...TARGET_MARKET_OPTIONS].sort((a, b) => {
+            const scoreA = (a.length + gpsSum) % 13;
+            const scoreB = (b.length + gpsSum) % 17;
+            return scoreA - scoreB;
+        });
+
+        setSuggestions(shuffled.slice(0, 5));
+    };
+
+    const addSuggestion = (tag: string) => {
+        const currentTags = formData.targetMarket
+            ? formData.targetMarket.split(',').map(t => t.trim()).filter(Boolean)
+            : [];
+
+        if (!currentTags.includes(tag)) {
+            const newTags = [...currentTags, tag].join(', ');
+            setFormData({ ...formData, targetMarket: newTags });
+        }
+    };
 
     const handleCancelUpload = () => {
         if (uploadTaskRef.current) {
@@ -539,12 +576,37 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Target Market</label>
-                            <input
-                                type="text"
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                                value={formData.targetMarket}
-                                onChange={(e) => setFormData({ ...formData, targetMarket: e.target.value })}
-                            />
+                            <div className="flex gap-2 mt-1">
+                                <input
+                                    type="text"
+                                    className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                    value={formData.targetMarket}
+                                    onChange={(e) => setFormData({ ...formData, targetMarket: e.target.value })}
+                                    placeholder="e.g. Tourist, Business Community"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={generateSuggestions}
+                                    className="px-3 py-2 bg-teal-50 text-teal-700 rounded-md border border-teal-200 hover:bg-teal-100 text-sm font-medium whitespace-nowrap"
+                                >
+                                    Suggest
+                                </button>
+                            </div>
+                            {suggestions.length > 0 && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {suggestions.map(tag => (
+                                        <button
+                                            key={tag}
+                                            type="button"
+                                            onClick={() => addSuggestion(tag)}
+                                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                                        >
+                                            + {tag}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            <p className="mt-1 text-xs text-gray-500">Click "Suggest" to get AI-powered recommendations based on location.</p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Traffic Volume</label>

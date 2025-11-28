@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, FileText, Calendar, User, Mail, MoreHorizontal, Eye, Trash2 } from 'lucide-react';
 import { collection, getDocs, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useModal } from '@/context/ModalContext';
 import Link from 'next/link';
 
 interface Proposal {
@@ -20,6 +21,7 @@ export default function ProposalsPage() {
     const [proposals, setProposals] = useState<Proposal[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const { showConfirm, showModal } = useModal();
 
     useEffect(() => {
         fetchProposals();
@@ -42,15 +44,15 @@ export default function ProposalsPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (confirm('Are you sure you want to delete this proposal?')) {
+        showConfirm('Delete Proposal', 'Are you sure you want to delete this proposal?', async () => {
             try {
                 await deleteDoc(doc(db, 'proposals', id));
                 setProposals(proposals.filter(item => item.id !== id));
             } catch (error) {
                 console.error("Error deleting proposal:", error);
-                alert('Failed to delete proposal');
+                showModal({ title: 'Error', message: 'Failed to delete proposal', type: 'danger' });
             }
-        }
+        }, 'danger');
     };
 
     const filteredProposals = proposals.filter(item =>

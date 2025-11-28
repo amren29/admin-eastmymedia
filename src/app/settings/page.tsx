@@ -7,10 +7,12 @@ import { db, auth } from '@/lib/firebase';
 import { Save, User, Lock } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
+import { useModal } from '@/context/ModalContext';
 import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
     const { userData } = useAuth();
+    const { showAlert, showModal } = useModal();
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
@@ -73,10 +75,10 @@ export default function SettingsPage() {
                 ...formData,
                 updatedAt: new Date().toISOString()
             });
-            alert('Settings saved successfully!');
+            showAlert('Saved', 'Settings saved successfully!', 'success');
         } catch (error) {
             console.error("Error saving settings:", error);
-            alert('Failed to save settings');
+            showModal({ title: 'Error', message: 'Failed to save settings', type: 'danger' });
         } finally {
             setSaving(false);
         }
@@ -98,12 +100,12 @@ export default function SettingsPage() {
             // Update Password
             if (newPassword) {
                 if (newPassword !== confirmPassword) {
-                    alert("Passwords do not match!");
+                    showAlert('Password Mismatch', "Passwords do not match!", 'warning');
                     setUpdatingProfile(false);
                     return;
                 }
                 if (newPassword.length < 6) {
-                    alert("Password must be at least 6 characters.");
+                    showAlert('Weak Password', "Password must be at least 6 characters.", 'warning');
                     setUpdatingProfile(false);
                     return;
                 }
@@ -112,13 +114,17 @@ export default function SettingsPage() {
                 setConfirmPassword('');
             }
 
-            alert('Profile updated successfully!');
+            showAlert('Profile Updated', 'Profile updated successfully!', 'success');
         } catch (error: any) {
             console.error("Error updating profile:", error);
             if (error.code === 'auth/requires-recent-login') {
-                alert("For security, please logout and login again to change your password.");
+                showModal({
+                    title: 'Security Alert',
+                    message: "For security, please logout and login again to change your password.",
+                    type: 'warning'
+                });
             } else {
-                alert('Failed to update profile: ' + error.message);
+                showModal({ title: 'Error', message: 'Failed to update profile: ' + error.message, type: 'danger' });
             }
         } finally {
             setUpdatingProfile(false);

@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useModal } from '@/context/ModalContext';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
 export default function NewCustomerPage() {
     const router = useRouter();
+    const { showAlert, showModal } = useModal();
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
@@ -21,7 +23,7 @@ export default function NewCustomerPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.email || !formData.name) {
-            alert('Name and Email are required');
+            showAlert('Missing Information', 'Name and Email are required', 'warning');
             return;
         }
 
@@ -32,7 +34,7 @@ export default function NewCustomerPage() {
             const customerSnap = await getDoc(customerRef);
 
             if (customerSnap.exists()) {
-                alert('A customer with this email already exists.');
+                showAlert('Duplicate', 'A customer with this email already exists.', 'warning');
                 setSaving(false);
                 return;
             }
@@ -48,7 +50,7 @@ export default function NewCustomerPage() {
             router.push('/customers');
         } catch (error) {
             console.error("Error creating customer:", error);
-            alert('Failed to create customer');
+            showModal({ title: 'Error', message: 'Failed to create customer', type: 'danger' });
         } finally {
             setSaving(false);
         }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useModal } from '@/context/ModalContext';
 import { useRouter } from 'next/navigation';
 import { collection, getDocs, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -19,6 +20,7 @@ interface UserData {
 
 export default function UsersPage() {
     const { userData } = useAuth();
+    const { showConfirm, showAlert, showModal } = useModal();
     const router = useRouter();
     const [users, setUsers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -57,31 +59,32 @@ export default function UsersPage() {
             });
 
             // Refresh users list
+            // Refresh users list
             fetchUsers();
-            alert('User approved successfully!');
+            showAlert('Approved', 'User approved successfully!', 'success');
         } catch (error) {
             console.error('Error approving user:', error);
-            alert('Failed to approve user');
+            showModal({ title: 'Error', message: 'Failed to approve user', type: 'danger' });
         }
     };
 
     const handleReject = async (uid: string) => {
-        if (!confirm('Are you sure you want to reject this user?')) return;
+        showConfirm('Reject User', 'Are you sure you want to reject this user?', async () => {
+            try {
+                await updateDoc(doc(db, 'users', uid), {
+                    status: 'rejected',
+                    rejectedBy: userData?.uid,
+                    rejectedAt: new Date().toISOString()
+                });
 
-        try {
-            await updateDoc(doc(db, 'users', uid), {
-                status: 'rejected',
-                rejectedBy: userData?.uid,
-                rejectedAt: new Date().toISOString()
-            });
-
-            // Refresh users list
-            fetchUsers();
-            alert('User rejected');
-        } catch (error) {
-            console.error('Error rejecting user:', error);
-            alert('Failed to reject user');
-        }
+                // Refresh users list
+                fetchUsers();
+                showAlert('Rejected', 'User rejected', 'info');
+            } catch (error) {
+                console.error('Error rejecting user:', error);
+                showModal({ title: 'Error', message: 'Failed to reject user', type: 'danger' });
+            }
+        }, 'danger');
     };
 
     const handleChangeRole = async (uid: string, newRole: string) => {
@@ -95,60 +98,69 @@ export default function UsersPage() {
             });
 
             // Refresh users list
+            // Refresh users list
             fetchUsers();
-            alert('User role updated successfully!');
+            showAlert('Role Updated', 'User role updated successfully!', 'success');
         } catch (error) {
             console.error('Error changing role:', error);
-            alert('Failed to change user role');
+            showModal({ title: 'Error', message: 'Failed to change user role', type: 'danger' });
         }
     };
 
     const handleDelete = async (uid: string, userEmail: string) => {
-        if (!confirm(`⚠️ WARNING: This will permanently delete the user account for "${userEmail}".\n\nThis action CANNOT be undone.\n\nAre you absolutely sure?`)) return;
+        showConfirm(
+            'Delete User',
+            `⚠️ WARNING: This will permanently delete the user account for "${userEmail}".\n\nThis action CANNOT be undone.\n\nAre you absolutely sure?`,
+            async () => {
+                try {
+                    // Delete from Auth (Server-side)
+                    const response = await fetch(`/api/users/${uid}`, { method: 'DELETE' });
+                    if (!response.ok) {
+                        const data = await response.json();
+                        throw new Error(data.error || 'Failed to delete from Auth');
+                    }
 
-        try {
-            // Delete from Auth (Server-side)
-            const response = await fetch(`/api/users/${uid}`, { method: 'DELETE' });
-            if (!response.ok) {
-                const data = await response.json();
-                // If 500, it might be the missing credentials. Warn the user but proceed with Firestore deletion if they want?
-                // No, better to fail and tell them to fix config.
-                throw new Error(data.error || 'Failed to delete from Auth');
-            }
+                    // Delete from Firestore (Mark as deleted)
+                    await updateDoc(doc(db, 'users', uid), {
+                        status: 'deleted',
+                        deletedBy: userData?.uid,
+                        deletedAt: new Date().toISOString()
+                    });
 
-            // Delete from Firestore (Mark as deleted)
-            await updateDoc(doc(db, 'users', uid), {
-                status: 'deleted',
-                deletedBy: userData?.uid,
-                deletedAt: new Date().toISOString()
-            });
-
-            // Refresh users list
-            fetchUsers();
-            alert('User deleted successfully from System and Authentication');
-        } catch (error: any) {
-            console.error('Error deleting user:', error);
-            alert('Failed to delete user: ' + error.message);
-        }
+                    // Refresh users list
+                    fetchUsers();
+                    showAlert('Deleted', 'User deleted successfully from System and Authentication', 'success');
+                } catch (error: any) {
+                    console.error('Error deleting user:', error);
+                    showModal({ title: 'Error', message: 'Failed to delete user: ' + error.message, type: 'danger' });
+                }
+            },
+            'danger'
+        );
     };
 
     const handleDeactivate = async (uid: string) => {
-        if (!confirm('Are you sure you want to deactivate this user? They will be logged out and unable to access the system.')) return;
+        showConfirm(
+            'Deactivate User',
+            'Are you sure you want to deactivate this user? They will be logged out and unable to access the system.',
+            async () => {
+                try {
+                    await updateDoc(doc(db, 'users', uid), {
+                        status: 'rejected',
+                        deactivatedBy: userData?.uid,
+                        deactivatedAt: new Date().toISOString()
+                    });
 
-        try {
-            await updateDoc(doc(db, 'users', uid), {
-                status: 'rejected',
-                deactivatedBy: userData?.uid,
-                deactivatedAt: new Date().toISOString()
-            });
-
-            // Refresh users list
-            fetchUsers();
-            alert('User deactivated');
-        } catch (error) {
-            console.error('Error deactivating user:', error);
-            alert('Failed to deactivate user');
-        }
+                    // Refresh users list
+                    fetchUsers();
+                    showAlert('Deactivated', 'User deactivated', 'info');
+                } catch (error) {
+                    console.error('Error deactivating user:', error);
+                    showModal({ title: 'Error', message: 'Failed to deactivate user', type: 'danger' });
+                }
+            },
+            'warning'
+        );
     };
 
     const filteredUsers = users.filter(user => {

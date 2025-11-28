@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
+import { useModal } from '@/context/ModalContext';
 
 export default function SignUpPage() {
     const [fullName, setFullName] = useState('');
@@ -19,6 +20,7 @@ export default function SignUpPage() {
     const [step, setStep] = useState(1); // 1: Registration Form, 2: OTP
     const [otp, setOtp] = useState('');
     const router = useRouter();
+    const { showModal } = useModal();
 
     const handleSendOTP = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -74,7 +76,12 @@ Verification Team of Eastmy Media`;
                     console.log('===========================================\n');
 
                     // Show OTP in alert for easy access
-                    alert(`⚠️ Email failed to send!\n\nYour OTP Code: ${generatedOtp}\n\nEnter this code in the next step.`);
+                    // Show OTP in modal for easy access
+                    showModal({
+                        title: 'Email Failed',
+                        message: `⚠️ Email failed to send!\n\nYour OTP Code: ${generatedOtp}\n\nEnter this code in the next step.`,
+                        type: 'warning'
+                    });
                 }
             } catch (emailError) {
                 // Email failed, show in console

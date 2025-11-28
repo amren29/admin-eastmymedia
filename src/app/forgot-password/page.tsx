@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { useModal } from '@/context/ModalContext';
 import Link from 'next/link';
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 
@@ -11,10 +12,10 @@ export default function ForgotPasswordPage() {
     const [loading, setLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState('');
+    const { showAlert, showModal } = useModal();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        alert('Button clicked! Starting process...'); // Immediate feedback
         console.log("Submitting forgot password for:", email);
         setLoading(true);
         setError('');
@@ -24,15 +25,17 @@ export default function ForgotPasswordPage() {
             await sendPasswordResetEmail(auth, email);
             console.log("Email sent successfully");
             setSubmitted(true);
+            showAlert('Email Sent', `We have sent a password reset link to ${email}.`, 'success');
         } catch (err: any) {
             console.error("Error sending reset email:", err);
+            let errorMessage = 'Failed to send reset email';
             if (err.code === 'auth/user-not-found') {
-                setError('No account found with this email address.');
+                errorMessage = 'No account found with this email address.';
             } else {
-                setError('Failed to send reset email: ' + err.message);
+                errorMessage = 'Failed to send reset email: ' + err.message;
             }
-            // Fallback alert for visibility
-            alert('Error: ' + (err.message || 'Failed to send email'));
+            setError(errorMessage);
+            showModal({ title: 'Error', message: errorMessage, type: 'danger' });
         } finally {
             setLoading(false);
         }
