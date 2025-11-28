@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { use } from 'react';
+import { useModal } from '@/context/ModalContext';
 
 interface MediaFormProps {
     params: Promise<{ id?: string }>;
@@ -31,6 +32,7 @@ export default function MediaFormPage({ params }: MediaFormProps) {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const uploadTaskRef = useRef<any>(null);
+    const { showAlert, showModal } = useModal();
 
     const handleCancelUpload = () => {
         if (uploadTaskRef.current) {
@@ -38,7 +40,8 @@ export default function MediaFormPage({ params }: MediaFormProps) {
             setUploading(false);
             setPreviewUrl(null);
             setUploadProgress(0);
-            alert('Upload cancelled');
+            setUploadProgress(0);
+            showAlert('Cancelled', 'Upload cancelled', 'info');
         }
     };
 
@@ -181,7 +184,11 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                 },
                 (error: any) => {
                     console.error("Error during upload:", error);
-                    alert(`Upload failed: ${error.message}`);
+                    showModal({
+                        title: 'Upload Failed',
+                        message: `Upload failed: ${error.message}`,
+                        type: 'danger'
+                    });
                     setUploading(false);
                     setPreviewUrl(null); // Clear preview on error
                 },
@@ -190,14 +197,22 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                     const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
                     console.log('Download URL obtained:', downloadURL);
                     setFormData(prev => ({ ...prev, image: downloadURL }));
-                    alert('Image uploaded successfully!');
+                    showModal({
+                        title: 'Success',
+                        message: 'Image uploaded successfully!',
+                        type: 'success'
+                    });
                     setUploading(false);
                     setPreviewUrl(null); // Clear preview as we now have the real URL (though we could keep it until save)
                 }
             );
         } catch (error: any) {
             console.error("Error initiating upload:", error);
-            alert(`Failed to initiate upload: ${error.message || 'Unknown error'}`);
+            showModal({
+                title: 'Upload Error',
+                message: `Failed to initiate upload: ${error.message || 'Unknown error'}`,
+                type: 'danger'
+            });
             setUploading(false);
             setPreviewUrl(null);
         }
@@ -243,7 +258,11 @@ export default function MediaFormPage({ params }: MediaFormProps) {
             router.push('/media');
         } catch (error) {
             console.error("Error saving media:", error);
-            alert('Failed to save media');
+            showModal({
+                title: 'Save Failed',
+                message: 'Failed to save media',
+                type: 'danger'
+            });
         } finally {
             setLoading(false);
         }
@@ -369,46 +388,15 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                             </select>
                         </div>
                         <div className="col-span-3">
-                            <label className="block text-sm font-medium text-gray-700">Image</label>
-                            <div className="mt-1 flex items-center space-x-4">
-                                {(previewUrl || formData.image) && (
-                                    <div className="relative h-20 w-20 rounded-md overflow-hidden border border-gray-200">
-                                        <img
-                                            src={previewUrl || formData.image}
-                                            alt="Preview"
-                                            className="h-full w-full object-cover"
-                                        />
-                                        {uploading && (
-                                            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center flex-col">
-                                                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mb-1"></div>
-                                                <span className="text-white text-xs font-bold">{Math.round(uploadProgress)}%</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        handleCancelUpload();
-                                                    }}
-                                                    className="mt-2 text-[10px] bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                                <div className="flex-1">
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        disabled={uploading}
-                                        onChange={handleImageUpload}
-                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100"
-                                    />
-                                    {uploading && <p className="text-xs text-teal-600 mt-1">Uploading...</p>}
-                                </div>
-                            </div>
-                            <p className="mt-1 text-xs text-gray-500">Recommended size: 1920x1080 for Digital, High Res for Print.</p>
+                            <label className="block text-sm font-medium text-gray-700">Image URL</label>
+                            <input
+                                type="text"
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                value={formData.image}
+                                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                                placeholder="Enter image URL"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">Enter the image URL for this media.</p>
                         </div>
                     </div>
                 </div>
