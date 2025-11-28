@@ -41,6 +41,17 @@ export default function MediaFormPage({ params }: MediaFormProps) {
         'Working Professionals', 'Expatriates', 'Foodies'
     ];
 
+    const TIME_OPTIONS = [
+        "12:00 AM", "12:30 AM", "1:00 AM", "1:30 AM", "2:00 AM", "2:30 AM",
+        "3:00 AM", "3:30 AM", "4:00 AM", "4:30 AM", "5:00 AM", "5:30 AM",
+        "6:00 AM", "6:30 AM", "7:00 AM", "7:30 AM", "8:00 AM", "8:30 AM",
+        "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM", "11:00 AM", "11:30 AM",
+        "12:00 PM", "12:30 PM", "1:00 PM", "1:30 PM", "2:00 PM", "2:30 PM",
+        "3:00 PM", "3:30 PM", "4:00 PM", "4:30 PM", "5:00 PM", "5:30 PM",
+        "6:00 PM", "6:30 PM", "7:00 PM", "7:30 PM", "8:00 PM", "8:30 PM",
+        "9:00 PM", "9:30 PM", "10:00 PM", "10:30 PM", "11:00 PM", "11:30 PM"
+    ];
+
     const generateSuggestions = () => {
         if (!formData.gps) {
             // Random suggestions if no GPS
@@ -474,15 +485,43 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                     <div className="bg-white p-6 rounded-lg shadow-sm space-y-6">
                         <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Screen Information</h3>
                         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Screening Hours</label>
-                                <input
-                                    type="text"
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                                    value={formData.operatingTime}
-                                    onChange={(e) => setFormData({ ...formData, operatingTime: e.target.value })}
-                                    placeholder="e.g. 7:00am - 12:00am"
-                                />
+                            <div className="col-span-1 sm:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Screening Hours</label>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex-1">
+                                        <label className="text-xs text-gray-500 mb-1 block">From</label>
+                                        <select
+                                            className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                            value={formData.operatingTime.split(' - ')[0] || ''}
+                                            onChange={(e) => {
+                                                const currentEnd = formData.operatingTime.split(' - ')[1] || '12:00 AM';
+                                                setFormData({ ...formData, operatingTime: `${e.target.value} - ${currentEnd}` });
+                                            }}
+                                        >
+                                            <option value="">Select Start Time</option>
+                                            {TIME_OPTIONS.map(time => (
+                                                <option key={time} value={time}>{time}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <span className="text-gray-400 mt-6">-</span>
+                                    <div className="flex-1">
+                                        <label className="text-xs text-gray-500 mb-1 block">To</label>
+                                        <select
+                                            className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                            value={formData.operatingTime.split(' - ')[1] || ''}
+                                            onChange={(e) => {
+                                                const currentStart = formData.operatingTime.split(' - ')[0] || '7:00 AM';
+                                                setFormData({ ...formData, operatingTime: `${currentStart} - ${e.target.value}` });
+                                            }}
+                                        >
+                                            <option value="">Select End Time</option>
+                                            {TIME_OPTIONS.map(time => (
+                                                <option key={time} value={time}>{time}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Duration Per Ad</label>
