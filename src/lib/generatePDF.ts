@@ -17,6 +17,7 @@ interface MediaItem {
     fileFormat?: string;
     availability?: string;
     gps?: string;
+    rentalRates?: { duration: string; rentalPrice: number }[];
     [key: string]: any;
 }
 
@@ -50,18 +51,31 @@ export const generatePDF = async (proposal: ProposalData, settings?: any, return
     const darkFooter: [number, number, number] = [15, 23, 42]; // Slate-900
 
     // Helper to load image and get dimensions
-    const getImageProperties = (url: string): Promise<{ width: number; height: number; ratio: number }> => {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                resolve({ width: img.width, height: img.height, ratio: img.width / img.height });
-            };
-            img.onerror = (e) => {
-                console.error("Error loading image:", url, e);
-                reject(e);
-            };
-            img.crossOrigin = "Anonymous"; // Try to handle CORS
-            img.src = url;
+    const getImageProperties = (url: string): Promise<{ width: number; height: number; ratio: number; data: string }> => {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64data = reader.result as string;
+                    const img = new Image();
+                    img.onload = () => {
+                        resolve({
+                            width: img.width,
+                            height: img.height,
+                            ratio: img.width / img.height,
+                            data: base64data
+                        });
+                    };
+                    img.src = base64data;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            } catch (error) {
+                console.error("Error fetching image:", url, error);
+                reject(error);
+            }
         });
     };
 
@@ -133,7 +147,7 @@ export const generatePDF = async (proposal: ProposalData, settings?: any, return
                     drawX = sideMargin + (colWidth - drawW) / 2; // Center horizontally
                 }
 
-                doc.addImage(item.image, 'JPEG', drawX, drawY, drawW, drawH);
+                doc.addImage(imgProps.data, 'JPEG', drawX, drawY, drawW, drawH);
 
                 // Optional: Draw a border around the image box area to show the bounds
                 // doc.setDrawColor(240, 240, 240);
@@ -252,11 +266,27 @@ export const generatePDF = async (proposal: ProposalData, settings?: any, return
         };
 
         const tableHead = [['Duration', 'Rental', 'Change of Material', 'Production', 'Total', `SST ${sstRate * 100}%`]];
-        const tableData = [
-            createRow('Daily', Math.round(price / 30), 500),
-            createRow('Weekly', Math.round(price / 4), 500),
-            createRow('1 Month', price, 500)
-        ];
+
+        let tableData: any[] = [];
+
+        if (item.rentalRates && item.rentalRates.length > 0) {
+            // Use defined rental rates
+            tableData = item.rentalRates.map((rate: any) => [
+                rate.duration,
+                `RM${Number(rate.rentalPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                'N/A',
+                `RM${Number(rate.productionCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                `RM${Number(rate.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                `RM${Number(rate.sst).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            ]);
+        } else {
+            // Fallback to calculated rates
+            tableData = [
+                createRow('Daily', Math.round(price / 30), 500),
+                createRow('Weekly', Math.round(price / 4), 500),
+                createRow('1 Month', price, 500)
+            ];
+        }
 
         autoTable(doc, {
             startY: tableY,

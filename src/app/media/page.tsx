@@ -39,6 +39,8 @@ export default function MediaPage() {
     const { showConfirm, showAlert, showModal } = useModal();
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
     const filteredMedia = media.filter(item => {
         const searchLower = searchTerm.toLowerCase();
         return (
@@ -48,7 +50,25 @@ export default function MediaPage() {
             (item.code && item.code.toLowerCase().includes(searchLower)) ||
             item.type.toLowerCase().includes(searchLower)
         );
+    }).sort((a, b) => {
+        if (!sortConfig) return 0;
+        const { key, direction } = sortConfig;
+        if (a[key] < b[key]) {
+            return direction === 'asc' ? -1 : 1;
+        }
+        if (a[key] > b[key]) {
+            return direction === 'asc' ? 1 : -1;
+        }
+        return 0;
     });
+
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
 
     useEffect(() => {
         fetchMedia();
@@ -313,7 +333,17 @@ export default function MediaPage() {
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600">SKU ID</th>
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600">Name</th>
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600">Location</th>
-                                <th className="h-12 px-6 align-middle font-semibold text-slate-600">Type</th>
+                                <th
+                                    className="h-12 px-6 align-middle font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                                    onClick={() => requestSort('type')}
+                                >
+                                    <div className="flex items-center gap-1">
+                                        Type
+                                        {sortConfig?.key === 'type' && (
+                                            <span className="text-xs">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                                        )}
+                                    </div>
+                                </th>
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600">Price</th>
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600">Status</th>
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600 text-right">Actions</th>

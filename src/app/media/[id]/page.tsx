@@ -7,6 +7,8 @@ import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase
 import { db, storage } from '@/lib/firebase';
 import { use } from 'react';
 import { useModal } from '@/context/ModalContext';
+import { MapPin } from 'lucide-react';
+import MapPicker from '@/components/MapPicker';
 
 interface MediaFormProps {
     params: Promise<{ id?: string }>;
@@ -93,6 +95,8 @@ export default function MediaFormPage({ params }: MediaFormProps) {
         }
     };
 
+    const [showMapPicker, setShowMapPicker] = useState<{ field: 'gps' | 'startPoint' | 'endPoint' } | null>(null);
+
     const [formData, setFormData] = useState({
         // Media Info
         skuId: '',
@@ -121,6 +125,9 @@ export default function MediaFormPage({ params }: MediaFormProps) {
 
         // Location Details
         gps: '',
+        startPoint: '', // For Roadside Bunting
+        endPoint: '',   // For Roadside Bunting
+        district: '',   // For Car Wrap
         landmark: '',
         targetMarket: '',
         traffic: '',
@@ -594,16 +601,80 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                 <div className="bg-white p-6 rounded-lg shadow-sm space-y-6">
                     <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Location Details</h3>
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Coordinate</label>
-                            <input
-                                type="text"
-                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                                value={formData.gps}
-                                onChange={(e) => setFormData({ ...formData, gps: e.target.value })}
-                                placeholder="e.g. 3.148093, 101.716821"
-                            />
-                        </div>
+
+                        {formData.type === 'Roadside Bunting' ? (
+                            <>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Start Point (Lamp Post)</label>
+                                    <div className="mt-1 flex rounded-md shadow-sm">
+                                        <input
+                                            type="text"
+                                            className="block w-full rounded-l-md border border-gray-300 px-3 py-2 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                            value={formData.startPoint || ''}
+                                            onChange={(e) => setFormData({ ...formData, startPoint: e.target.value })}
+                                            placeholder="e.g. 3.148093, 101.716821"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowMapPicker({ field: 'startPoint' })}
+                                            className="inline-flex items-center rounded-r-md border border-l-0 border-gray-300 bg-gray-50 px-3 text-gray-500 hover:bg-gray-100"
+                                        >
+                                            <MapPin className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">End Point (Lamp Post)</label>
+                                    <div className="mt-1 flex rounded-md shadow-sm">
+                                        <input
+                                            type="text"
+                                            className="block w-full rounded-l-md border border-gray-300 px-3 py-2 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                            value={formData.endPoint || ''}
+                                            onChange={(e) => setFormData({ ...formData, endPoint: e.target.value })}
+                                            placeholder="e.g. 3.149093, 101.717821"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowMapPicker({ field: 'endPoint' })}
+                                            className="inline-flex items-center rounded-r-md border border-l-0 border-gray-300 bg-gray-50 px-3 text-gray-500 hover:bg-gray-100"
+                                        >
+                                            <MapPin className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
+                        ) : formData.type === 'Car Wrap' ? (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">District</label>
+                                <input
+                                    type="text"
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                    value={formData.district || ''}
+                                    onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+                                    placeholder="e.g. Kota Kinabalu, Penampang"
+                                />
+                            </div>
+                        ) : (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Coordinate</label>
+                                <div className="mt-1 flex rounded-md shadow-sm">
+                                    <input
+                                        type="text"
+                                        className="block w-full rounded-l-md border border-gray-300 px-3 py-2 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                        value={formData.gps}
+                                        onChange={(e) => setFormData({ ...formData, gps: e.target.value })}
+                                        placeholder="e.g. 3.148093, 101.716821"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowMapPicker({ field: 'gps' })}
+                                        className="inline-flex items-center rounded-r-md border border-l-0 border-gray-300 bg-gray-50 px-3 text-gray-500 hover:bg-gray-100"
+                                    >
+                                        <MapPin className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Landmark</label>
                             <input
