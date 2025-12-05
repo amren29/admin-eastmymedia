@@ -64,19 +64,18 @@ export default function MapPicker({ initialLatitude, initialLongitude, onSelect,
                     ) : (
                         <Map
                             {...viewState}
-                            onMove={evt => setViewState(evt.viewState)}
+                            onMove={(evt: any) => setViewState(evt.viewState)}
                             style={{ width: '100%', height: '100%' }}
                             mapStyle="mapbox://styles/mapbox/streets-v12"
                             mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
-                            onClick={handleMapClick}
+                            onClick={(e: any) => handleMapClick(e)}
                             cursor="crosshair"
                         >
-                            <NavigationControl position="top-right" />
+                            <NavigationControl />
                             {marker && (
                                 <Marker
                                     latitude={marker.lat}
                                     longitude={marker.lng}
-                                    anchor="bottom"
                                     color="#0f766e" // teal-700
                                 />
                             )}
