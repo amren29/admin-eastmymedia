@@ -273,6 +273,20 @@ export default function MediaFormPage({ params }: MediaFormProps) {
         }
     };
 
+    const handleMapSelect = (lat: number, lng: number) => {
+        if (!showMapPicker) return;
+
+        const coordString = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+        if (showMapPicker.field === 'gps') {
+            setFormData(prev => ({ ...prev, gps: coordString }));
+        } else if (showMapPicker.field === 'startPoint') {
+            setFormData(prev => ({ ...prev, startPoint: coordString }));
+        } else if (showMapPicker.field === 'endPoint') {
+            setFormData(prev => ({ ...prev, endPoint: coordString }));
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -904,6 +918,13 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                     -moz-appearance: textfield;
                 }
             `}</style>
+
+            {showMapPicker && (
+                <MapPicker
+                    onSelect={handleMapSelect}
+                    onClose={() => setShowMapPicker(null)}
+                />
+            )}
         </div>
     );
 }
