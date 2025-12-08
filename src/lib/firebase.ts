@@ -20,14 +20,19 @@ let storage: FirebaseStorage;
 let analytics: any;
 
 if (typeof window !== 'undefined') {
-    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    db = getFirestore(app);
-    auth = getAuth(app);
-    storage = getStorage(app);
+    // Basic validation to prevent crash if env vars are missing
+    if (!firebaseConfig.apiKey) {
+        console.error("Firebase Configuration Error: NEXT_PUBLIC_FIREBASE_API_KEY is missing. Check your environment variables.");
+    } else {
+        app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        db = getFirestore(app);
+        auth = getAuth(app);
+        storage = getStorage(app);
 
-    import('firebase/analytics').then(({ getAnalytics }) => {
-        analytics = getAnalytics(app);
-    });
+        import('firebase/analytics').then(({ getAnalytics }) => {
+            analytics = getAnalytics(app);
+        });
+    }
 }
 
 export { app, db, auth, storage, analytics };
