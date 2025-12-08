@@ -2,22 +2,33 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Map, Users, FileText, Settings, LogOut, UserCog } from 'lucide-react';
+import {
+    LayoutDashboard,
+    Map as MapIcon,
+    Users,
+    Settings,
+    LogOut,
+    FileText,
+    UserCircle,
+    UserPlus,
+    UserCog
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { clsx } from 'clsx';
 
 const navItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard, roles: ['administrator', 'director', 'chief', 'manager', 'sales', 'admin'] },
-    { name: 'Media Inventory', href: '/media', icon: Map, roles: ['administrator', 'director', 'chief', 'manager', 'sales', 'admin'] },
+    { name: 'Media Inventory', href: '/media', icon: MapIcon, roles: ['administrator', 'director', 'chief', 'manager', 'sales', 'admin'] },
     { name: 'Customers', href: '/customers', icon: Users, roles: ['administrator', 'director', 'chief', 'manager', 'sales'] },
     { name: 'Proposals', href: '/proposals', icon: FileText, roles: ['administrator', 'director', 'chief', 'manager', 'sales'] },
+    { name: 'Blog', href: '/blog', icon: FileText, roles: ['administrator', 'admin', 'editor'] },
     { name: 'User Management', href: '/users', icon: UserCog, roles: ['administrator'] },
     { name: 'Settings', href: '/settings', icon: Settings, roles: ['administrator', 'director', 'chief', 'manager'] },
 ];
 
 export function Sidebar() {
     const pathname = usePathname();
-    const { userData, logout } = useAuth();
+    const { userData, user, logout } = useAuth();
 
     // Filter navigation items based on user role
     const filteredNavItems = navItems.filter(item =>
@@ -58,6 +69,14 @@ export function Sidebar() {
                 })}
             </nav>
             <div className="border-t border-slate-100 p-3 bg-white">
+                <div className="px-3 py-2 mb-2">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                        {userData?.fullName || 'User'}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                        {userData?.email || user?.email || ''}
+                    </p>
+                </div>
                 <button
                     onClick={() => logout()}
                     className="group flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
