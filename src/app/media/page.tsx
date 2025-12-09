@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Edit, Trash2, Upload, Filter, X, Check } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Upload, Filter, X, Check, AlertCircle } from 'lucide-react';
 import { collection, getDocs, deleteDoc, doc, writeBatch, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
@@ -17,7 +17,7 @@ interface Billboard {
     type: string;
     price: number;
     available: boolean;
-    verificationStatus?: 'draft' | 'pending' | 'published';
+    verificationStatus?: 'draft' | 'pending' | 'published' | 'rejected';
     size?: string;
     rentalRates?: {
         id: string;
@@ -41,6 +41,7 @@ export default function MediaPage() {
     const { userData } = useAuth();
     const { showConfirm, showAlert, showModal } = useModal();
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkStatus, setBulkStatus] = useState<string>('');
 
     // Filters
     // Filters
@@ -70,10 +71,10 @@ export default function MediaPage() {
             case 'status':
                 return item.available ? 1 : 0; // Booked (0) vs Available (1)
             case 'approval':
-                // Custom order: pending < draft < published
+                // Custom order: pending < draft < rejected < published
                 const status = item.verificationStatus || 'published';
-                const order = { 'pending': 0, 'draft': 1, 'published': 2 };
-                return order[status as keyof typeof order] ?? 2;
+                const order = { 'pending': 0, 'draft': 1, 'rejected': 2, 'published': 3 };
+                return order[status as keyof typeof order] ?? 3;
             case 'location':
             case 'name':
             case 'type':
@@ -212,6 +213,46 @@ export default function MediaPage() {
                 }
             },
             'danger'
+        );
+    };
+
+    const handleBulkStatusUpdate = async () => {
+        if (userData?.role?.toLowerCase() !== 'administrator') return;
+        if (!bulkStatus) {
+            showAlert('Wait', 'Please select a status to update to.', 'warning');
+            return;
+        }
+
+        showConfirm(
+            'Update Status',
+            `Are you sure you want to change the status of ${selectedIds.size} items to '${bulkStatus}'?`,
+            async () => {
+                try {
+                    const batch = writeBatch(db);
+                    selectedIds.forEach(id => {
+                        const docRef = doc(db, 'billboards', id);
+                        batch.update(docRef, {
+                            verificationStatus: bulkStatus,
+                            updatedAt: new Date().toISOString()
+                        });
+                    });
+                    await batch.commit();
+
+                    setMedia(media.map(item =>
+                        selectedIds.has(item.id)
+                            ? { ...item, verificationStatus: bulkStatus as any }
+                            : item
+                    ));
+
+                    setSelectedIds(new Set());
+                    setBulkStatus('');
+                    showAlert('Success', 'Bulk status update successful', 'success');
+                } catch (error) {
+                    console.error("Error updating statuses:", error);
+                    showAlert('Error', 'Failed to update statuses', 'danger');
+                }
+            },
+            'warning'
         );
     };
 
@@ -369,13 +410,35 @@ export default function MediaPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                     {userData?.role?.toLowerCase() === 'administrator' && selectedIds.size > 0 && (
-                        <button
-                            onClick={handleBulkDelete}
-                            className="flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 transition-colors"
-                        >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete Selected ({selectedIds.size})
-                        </button>
+                        <>
+                            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+                                <select
+                                    className="text-sm bg-white border border-slate-200 rounded-md py-1.5 pl-2 pr-8 focus:ring-2 focus:ring-blue-500"
+                                    value={bulkStatus}
+                                    onChange={(e) => setBulkStatus(e.target.value)}
+                                >
+                                    <option value="">Move to...</option>
+                                    <option value="published">Published</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="draft">Draft</option>
+                                    <option value="rejected">Disapprove (Need Action)</option>
+                                </select>
+                                <button
+                                    onClick={handleBulkStatusUpdate}
+                                    className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                                >
+                                    Update
+                                </button>
+                            </div>
+                            <span className="w-px h-8 bg-slate-200 mx-1"></span>
+                            <button
+                                onClick={handleBulkDelete}
+                                className="flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 transition-colors"
+                            >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete ({selectedIds.size})
+                            </button>
+                        </>
                     )}
 
                     <button
@@ -468,6 +531,7 @@ export default function MediaPage() {
                                 <option value="published">Published</option>
                                 <option value="pending">Pending Approval</option>
                                 <option value="draft">Drafts</option>
+                                <option value="rejected">Rejected (Needs Action)</option>
                             </select>
 
                             <select
@@ -642,6 +706,8 @@ export default function MediaPage() {
                                                         return <span className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800">Pending</span>;
                                                     case 'published':
                                                         return <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Published</span>;
+                                                    case 'rejected':
+                                                        return <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">Rejected</span>;
                                                     default:
                                                         return null;
                                                 }
