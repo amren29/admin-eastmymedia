@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { updateProfile, updatePassword } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
-import { Save, User, Lock } from 'lucide-react';
+import { Save, User, Lock, Phone, Mail, Briefcase } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
 import { useModal } from '@/context/ModalContext';
@@ -35,12 +35,21 @@ export default function SettingsPage() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [updatingProfile, setUpdatingProfile] = useState(false);
 
+    // Extended User Profile
+    const [userProfile, setUserProfile] = useState({
+        phoneNumber: '',
+        role: '',
+        email: '',
+        fullName: ''
+    });
+
     // Check if user is allowed to edit company settings
     const canEditCompanySettings = userData?.role && ['administrator', 'director', 'chief', 'manager'].includes(userData.role.toLowerCase());
 
     useEffect(() => {
-        if (auth.currentUser?.displayName) {
-            setDisplayName(auth.currentUser.displayName);
+        if (auth.currentUser) {
+            setDisplayName(auth.currentUser.displayName || '');
+            fetchUserProfile();
         }
     }, [auth.currentUser]);
 
@@ -49,6 +58,27 @@ export default function SettingsPage() {
             fetchSettings();
         }
     }, [canEditCompanySettings]);
+
+    const fetchUserProfile = async () => {
+        if (!auth.currentUser) return;
+        try {
+            const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+            if (userDoc.exists()) {
+                const data = userDoc.data();
+                setUserProfile({
+                    phoneNumber: data.phoneNumber || '',
+                    role: data.role || '',
+                    email: data.email || auth.currentUser.email || '',
+                    fullName: data.fullName || ''
+                });
+                if (!displayName && data.fullName) {
+                    setDisplayName(data.fullName);
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching user profile:", error);
+        }
+    };
 
     const fetchSettings = async () => {
         setLoading(true);
@@ -112,6 +142,14 @@ export default function SettingsPage() {
                 await updatePassword(auth.currentUser, newPassword);
                 setNewPassword('');
                 setConfirmPassword('');
+            }
+
+            // Also update Firestore user profile if changed
+            if (displayName !== userProfile.fullName) {
+                await setDoc(doc(db, 'users', auth.currentUser.uid), {
+                    fullName: displayName
+                }, { merge: true });
+                setUserProfile(prev => ({ ...prev, fullName: displayName }));
             }
 
             showAlert('Profile Updated', 'Profile updated successfully!', 'success');
@@ -304,10 +342,10 @@ export default function SettingsPage() {
                     <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-4">User Account</h3>
 
                     <div className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Display Name</label>
-                            <div className="flex gap-4">
-                                <div className="relative flex-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="col-span-1 sm:col-span-2">
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Display Name / Full Name</label>
+                                <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <User className="h-5 w-5 text-slate-400" />
                                     </div>
@@ -319,15 +357,63 @@ export default function SettingsPage() {
                                         placeholder="Your Name"
                                     />
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleUpdateProfile}
-                                    disabled={updatingProfile}
-                                    className="bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
-                                >
-                                    {updatingProfile ? 'Updating...' : 'Update Profile'}
-                                </button>
                             </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Mail className="h-5 w-5 text-slate-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        disabled
+                                        className="pl-10 w-full rounded-md border border-slate-300 px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                        value={userProfile.email}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Phone className="h-5 w-5 text-slate-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        disabled
+                                        className="pl-10 w-full rounded-md border border-slate-300 px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
+                                        value={userProfile.phoneNumber || 'Not provided'}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Briefcase className="h-5 w-5 text-slate-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        disabled
+                                        className="pl-10 w-full rounded-md border border-slate-300 px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed capitalize"
+                                        value={userProfile.role || 'User'}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end">
+                            <button
+                                type="button"
+                                onClick={handleUpdateProfile}
+                                disabled={updatingProfile}
+                                className="bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
+                            >
+                                {updatingProfile ? 'Updating...' : 'Update Profile'}
+                            </button>
                         </div>
 
                         <div className="border-t border-slate-100 pt-6">

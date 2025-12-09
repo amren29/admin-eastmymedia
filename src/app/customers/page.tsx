@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useModal } from '@/context/ModalContext';
-import { Mail, Phone, User, Search, Plus, RefreshCw } from 'lucide-react';
+import { Mail, Phone, User, Search, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
 interface Customer {
     id: string;
@@ -14,14 +15,16 @@ interface Customer {
     phone?: string;
     totalProposals: number;
     lastActiveAt: string;
+    [key: string]: any;
 }
 
 export default function CustomersPage() {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(true);
-    const [syncing, setSyncing] = useState(false);
     const { showConfirm, showAlert, showModal } = useModal();
     const [searchTerm, setSearchTerm] = useState('');
+    const { userData } = useAuth();
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         fetchCustomers();
@@ -45,56 +48,83 @@ export default function CustomersPage() {
         }
     };
 
-    const handleSync = async () => {
-        showConfirm('Sync Customers', 'This will scan all proposals and update the customer database. Continue?', async () => {
-            setSyncing(true);
-            try {
-                const q = query(collection(db, 'proposals'), orderBy('createdAt', 'desc'));
-                const querySnapshot = await getDocs(q);
+    const handleDelete = async (id: string) => {
+        if (userData?.role?.toLowerCase() !== 'administrator') {
+            showAlert('Access Denied', 'Only Administrators can delete customers.', 'warning');
+            return;
+        }
 
-                const customerMap = new Map<string, any>();
-
-                querySnapshot.docs.forEach(doc => {
-                    const data = doc.data();
-                    const email = data.clientEmail?.toLowerCase();
-
-                    if (email) {
-                        if (!customerMap.has(email)) {
-                            customerMap.set(email, {
-                                name: data.clientName,
-                                email: data.clientEmail,
-                                phone: data.clientPhone,
-                                lastActiveAt: data.createdAt,
-                                totalProposals: 1
-                            });
-                        } else {
-                            const existing = customerMap.get(email);
-                            existing.totalProposals += 1;
-                            // Keep the latest date (first one found due to desc sort)
-                        }
-                    }
-                });
-
-                // Batch writes would be better but for simplicity we'll loop
-                for (const [email, data] of customerMap.entries()) {
-                    await setDoc(doc(db, 'customers', email), data, { merge: true });
+        showConfirm(
+            'Delete Customer',
+            'Are you sure you want to delete this customer? This action cannot be undone.',
+            async () => {
+                try {
+                    await deleteDoc(doc(db, 'customers', id));
+                    setCustomers(customers.filter(item => item.id !== id));
+                    setSelectedIds(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(id);
+                        return newSet;
+                    });
+                    showAlert('Success', 'Customer deleted successfully', 'success');
+                } catch (error) {
+                    console.error("Error deleting customer:", error);
+                    showAlert('Error', 'Failed to delete customer', 'danger');
                 }
+            },
+            'danger'
+        );
+    };
 
-                showAlert('Synced', `Synced ${customerMap.size} customers successfully!`, 'success');
-                fetchCustomers();
-            } catch (error) {
-                console.error("Error syncing customers:", error);
-                showModal({ title: 'Error', message: 'Failed to sync customers', type: 'danger' });
-            } finally {
-                setSyncing(false);
-            }
-        }, 'confirm');
+    const handleBulkDelete = async () => {
+        if (userData?.role?.toLowerCase() !== 'administrator') return;
+
+        showConfirm(
+            'Delete Selected Customers',
+            `Are you sure you want to delete ${selectedIds.size} selected customers? This cannot be undone.`,
+            async () => {
+                try {
+                    const batch = writeBatch(db);
+                    selectedIds.forEach(id => {
+                        const docRef = doc(db, 'customers', id);
+                        batch.delete(docRef);
+                    });
+                    await batch.commit();
+
+                    setCustomers(customers.filter(item => !selectedIds.has(item.id)));
+                    setSelectedIds(new Set());
+                    showAlert('Success', 'Selected customers deleted successfully', 'success');
+                } catch (error) {
+                    console.error("Error deleting selected customers:", error);
+                    showAlert('Error', 'Failed to delete selected customers', 'danger');
+                }
+            },
+            'danger'
+        );
     };
 
     const filteredCustomers = customers.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === filteredCustomers.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filteredCustomers.map(item => item.id)));
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        const newSet = new Set(selectedIds);
+        if (newSet.has(id)) {
+            newSet.delete(id);
+        } else {
+            newSet.add(id);
+        }
+        setSelectedIds(newSet);
+    };
 
     if (loading) return <div className="p-8 text-center">Loading customers...</div>;
 
@@ -106,14 +136,15 @@ export default function CustomersPage() {
                     <p className="text-slate-500">Manage your client base.</p>
                 </div>
                 <div className="flex gap-2">
-                    <button
-                        onClick={handleSync}
-                        disabled={syncing}
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                        <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-                        {syncing ? 'Syncing...' : 'Sync'}
-                    </button>
+                    {userData?.role?.toLowerCase() === 'administrator' && selectedIds.size > 0 && (
+                        <button
+                            onClick={handleBulkDelete}
+                            className="flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 transition-colors"
+                        >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete Selected ({selectedIds.size})
+                        </button>
+                    )}
                     <Link
                         href="/customers/new"
                         className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
@@ -142,22 +173,43 @@ export default function CustomersPage() {
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
                             <tr>
+                                {userData?.role?.toLowerCase() === 'administrator' && (
+                                    <th className="h-12 px-6 align-middle font-semibold text-slate-600 w-12">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                            checked={filteredCustomers.length > 0 && selectedIds.size === filteredCustomers.length}
+                                            onChange={toggleSelectAll}
+                                        />
+                                    </th>
+                                )}
                                 <th className="px-6 py-4">Name</th>
                                 <th className="px-6 py-4">Contact Info</th>
                                 <th className="px-6 py-4 text-center">Proposals</th>
                                 <th className="px-6 py-4 text-right">Last Active</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {filteredCustomers.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
+                                    <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
                                         No customers found.
                                     </td>
                                 </tr>
                             ) : (
                                 filteredCustomers.map((customer) => (
-                                    <tr key={customer.id} className="hover:bg-slate-50 transition-colors">
+                                    <tr key={customer.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.has(customer.id) ? 'bg-blue-50' : ''}`}>
+                                        {userData?.role?.toLowerCase() === 'administrator' && (
+                                            <td className="px-6 py-4 align-middle">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                                    checked={selectedIds.has(customer.id)}
+                                                    onChange={() => toggleSelect(customer.id)}
+                                                />
+                                            </td>
+                                        )}
                                         <td className="px-6 py-4 font-medium text-slate-900">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
@@ -187,6 +239,13 @@ export default function CustomersPage() {
                                         </td>
                                         <td className="px-6 py-4 text-right text-slate-500">
                                             {new Date(customer.lastActiveAt).toLocaleDateString()}
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            {userData?.role?.toLowerCase() === 'administrator' && (
+                                                <button onClick={() => handleDelete(customer.id)} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-md transition-colors">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useModal } from '@/context/ModalContext';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, query, orderBy, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { CheckCircle, XCircle, Clock, User, Mail, Phone, Briefcase } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, User, Mail, Phone, Briefcase, Trash2 } from 'lucide-react';
 
 interface UserData {
     uid: string;
@@ -14,8 +14,9 @@ interface UserData {
     fullName: string;
     phoneNumber: string;
     role: string;
-    status: 'pending' | 'approved' | 'rejected';
+    status: 'pending' | 'approved' | 'rejected' | 'deleted';
     createdAt: string;
+    [key: string]: any;
 }
 
 export default function UsersPage() {
@@ -25,6 +26,8 @@ export default function UsersPage() {
     const [users, setUsers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkDeleting, setBulkDeleting] = useState(false);
 
     useEffect(() => {
         // Only administrators can access this page
@@ -41,7 +44,10 @@ export default function UsersPage() {
             const usersRef = collection(db, 'users');
             const q = query(usersRef, orderBy('createdAt', 'desc'));
             const snapshot = await getDocs(q);
-            const usersData = snapshot.docs.map(doc => doc.data() as UserData);
+            // Filter out already deleted users from the view if you want
+            const usersData = snapshot.docs
+                .map(doc => doc.data() as UserData)
+                .filter(u => u.status !== 'deleted');
             setUsers(usersData);
         } catch (error) {
             console.error('Error fetching users:', error);
@@ -58,7 +64,6 @@ export default function UsersPage() {
                 approvedAt: new Date().toISOString()
             });
 
-            // Refresh users list
             // Refresh users list
             fetchUsers();
             showAlert('Approved', 'User approved successfully!', 'success');
@@ -77,7 +82,6 @@ export default function UsersPage() {
                     rejectedAt: new Date().toISOString()
                 });
 
-                // Refresh users list
                 fetchUsers();
                 showAlert('Rejected', 'User rejected', 'info');
             } catch (error) {
@@ -97,8 +101,6 @@ export default function UsersPage() {
                 roleChangedAt: new Date().toISOString()
             });
 
-            // Refresh users list
-            // Refresh users list
             fetchUsers();
             showAlert('Role Updated', 'User role updated successfully!', 'success');
         } catch (error) {
@@ -127,7 +129,6 @@ export default function UsersPage() {
                         deletedAt: new Date().toISOString()
                     });
 
-                    // Refresh users list
                     fetchUsers();
                     showAlert('Deleted', 'User deleted successfully from System and Authentication', 'success');
                 } catch (error: any) {
@@ -138,6 +139,57 @@ export default function UsersPage() {
             'danger'
         );
     };
+
+    const handleBulkDelete = async () => {
+        showConfirm(
+            'Bulk Delete Users',
+            `⚠️ WARNING: This will permanently delete ${selectedIds.size} selected user accounts.\n\nThis action CANNOT be undone.\n\nAre you absolutely sure?`,
+            async () => {
+                setBulkDeleting(true);
+                try {
+                    let successCount = 0;
+                    let failCount = 0;
+
+                    // Process sequentially to be safe
+                    for (const uid of selectedIds) {
+                        try {
+                            const response = await fetch(`/api/users/${uid}`, { method: 'DELETE' });
+                            if (response.ok) {
+                                // Mark as deleted in Firestore
+                                await updateDoc(doc(db, 'users', uid), {
+                                    status: 'deleted',
+                                    deletedBy: userData?.uid,
+                                    deletedAt: new Date().toISOString()
+                                });
+                                successCount++;
+                            } else {
+                                failCount++;
+                            }
+                        } catch (e) {
+                            console.error(`Failed to delete user ${uid}`, e);
+                            failCount++;
+                        }
+                    }
+
+                    fetchUsers();
+                    setSelectedIds(new Set());
+
+                    if (failCount > 0) {
+                        showAlert('Completed with Errors', `Deleted ${successCount} users. Failed to delete ${failCount} users. Check console/logs.`, 'warning');
+                    } else {
+                        showAlert('Success', `Successfully deleted ${successCount} users.`, 'success');
+                    }
+
+                } catch (error: any) {
+                    console.error('Error bulk deleting users:', error);
+                    showModal({ title: 'Error', message: 'Failed to bulk delete users', type: 'danger' });
+                } finally {
+                    setBulkDeleting(false);
+                }
+            },
+            'danger'
+        );
+    }
 
     const handleDeactivate = async (uid: string) => {
         showConfirm(
@@ -151,7 +203,6 @@ export default function UsersPage() {
                         deactivatedAt: new Date().toISOString()
                     });
 
-                    // Refresh users list
                     fetchUsers();
                     showAlert('Deactivated', 'User deactivated', 'info');
                 } catch (error) {
@@ -167,6 +218,24 @@ export default function UsersPage() {
         if (filter === 'all') return true;
         return user.status === filter;
     });
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === filteredUsers.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filteredUsers.map(u => u.uid)));
+        }
+    };
+
+    const toggleSelect = (uid: string) => {
+        const newSet = new Set(selectedIds);
+        if (newSet.has(uid)) {
+            newSet.delete(uid);
+        } else {
+            newSet.add(uid);
+        }
+        setSelectedIds(newSet);
+    };
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -200,9 +269,21 @@ export default function UsersPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight text-gray-900">User Management</h2>
-                <p className="text-muted-foreground">Manage user registrations and permissions</p>
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight text-gray-900">User Management</h2>
+                    <p className="text-muted-foreground">Manage user registrations and permissions</p>
+                </div>
+                {selectedIds.size > 0 && (
+                    <button
+                        onClick={handleBulkDelete}
+                        disabled={bulkDeleting}
+                        className="flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 transition-colors disabled:opacity-50"
+                    >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {bulkDeleting ? 'Deleting...' : `Delete Selected (${selectedIds.size})`}
+                    </button>
+                )}
             </div>
 
             {/* Filter Tabs */}
@@ -234,6 +315,14 @@ export default function UsersPage() {
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th className="px-6 py-3 w-12">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                            checked={filteredUsers.length > 0 && selectedIds.size === filteredUsers.length}
+                                            onChange={toggleSelectAll}
+                                        />
+                                    </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
@@ -244,7 +333,15 @@ export default function UsersPage() {
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {filteredUsers.map((user) => (
-                                    <tr key={user.uid} className="hover:bg-gray-50">
+                                    <tr key={user.uid} className={`hover:bg-gray-50 ${selectedIds.has(user.uid) ? 'bg-blue-50' : ''}`}>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                                checked={selectedIds.has(user.uid)}
+                                                onChange={() => toggleSelect(user.uid)}
+                                            />
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">

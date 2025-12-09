@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Edit, Trash2, Upload } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Upload, Filter, X } from 'lucide-react';
 import { collection, getDocs, deleteDoc, doc, writeBatch, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
@@ -16,6 +16,7 @@ interface Billboard {
     type: string;
     price: number;
     available: boolean;
+    size?: string;
     rentalRates?: {
         id: string;
         duration: string;
@@ -39,17 +40,51 @@ export default function MediaPage() {
     const { showConfirm, showAlert, showModal } = useModal();
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+    // Filters
+    const [filterType, setFilterType] = useState('All');
+    const [filterLocation, setFilterLocation] = useState('All');
+    const [filterStatus, setFilterStatus] = useState('All');
+    const [filterPrice, setFilterPrice] = useState('All');
+    const [filterSize, setFilterSize] = useState('All');
+
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+    // Derived unique values for dropdowns
+    const uniqueTypes = ['All', ...Array.from(new Set(media.map(m => m.type || 'Unspecified'))).sort()];
+    const uniqueLocations = ['All', ...Array.from(new Set(media.map(m => m.location || 'Unspecified'))).sort()];
+    const uniqueSizes = ['All', ...Array.from(new Set(media.map(m => m.size || 'Unspecified'))).sort()];
+
 
     const filteredMedia = media.filter(item => {
         const searchLower = searchTerm.toLowerCase();
-        return (
+        const matchesSearch = (
             item.name.toLowerCase().includes(searchLower) ||
             item.location.toLowerCase().includes(searchLower) ||
             (item.skuId && item.skuId.toLowerCase().includes(searchLower)) ||
             (item.code && item.code.toLowerCase().includes(searchLower)) ||
             item.type.toLowerCase().includes(searchLower)
         );
+
+        const matchesType = filterType === 'All' || item.type === filterType;
+        const matchesLocation = filterLocation === 'All' || item.location === filterLocation;
+        const matchesSize = filterSize === 'All' || (item.size || 'Unspecified') === filterSize;
+        const matchesStatus = filterStatus === 'All'
+            ? true
+            : filterStatus === 'Available' ? item.available
+                : !item.available; // Booked
+
+        let matchesPrice = true;
+        if (filterPrice !== 'All') {
+            const price = Number(item.price) || 0;
+            switch (filterPrice) {
+                case 'Under 1000': matchesPrice = price < 1000; break;
+                case '1000-5000': matchesPrice = price >= 1000 && price <= 5000; break;
+                case '5000-10000': matchesPrice = price > 5000 && price <= 10000; break;
+                case 'Above 10000': matchesPrice = price > 10000; break;
+            }
+        }
+
+        return matchesSearch && matchesType && matchesLocation && matchesStatus && matchesPrice && matchesSize;
     }).sort((a, b) => {
         if (!sortConfig) return 0;
         const { key, direction } = sortConfig;
@@ -180,9 +215,7 @@ export default function MediaPage() {
                 console.log("Importing data:", data);
 
                 let count = 0;
-                // Process in chunks or one by one. For simplicity, one by one but in parallel could be faster.
-                // Using batch for better performance if many items, but batch limit is 500.
-
+                // Process in chunks
                 const batchSize = 400;
                 for (let i = 0; i < data.length; i += batchSize) {
                     const chunk = data.slice(i, i + batchSize);
@@ -211,7 +244,6 @@ export default function MediaPage() {
                             createdAt: new Date().toISOString(),
                             ...item
                         };
-                        // Remove id if present in excel to avoid overwriting or confusion, let firestore gen id
                         delete billboardData.id;
 
                         batch.set(docRef, billboardData);
@@ -248,6 +280,15 @@ export default function MediaPage() {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Media");
         XLSX.writeFile(workbook, "media_inventory.xlsx");
+    };
+
+    const clearFilters = () => {
+        setFilterType('All');
+        setFilterLocation('All');
+        setFilterStatus('All');
+        setFilterPrice('All');
+        setFilterSize('All');
+        setSearchTerm('');
     };
 
 
@@ -303,16 +344,85 @@ export default function MediaPage() {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-4 border-b border-slate-200 bg-slate-50/50">
-                    <div className="relative max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder="Search by name or location..."
-                            className="w-full rounded-lg border border-slate-300 pl-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                <div className="p-4 border-b border-slate-200 bg-slate-50/50 space-y-4">
+                    {/* Search and Filters Container */}
+                    <div className="flex flex-col xl:flex-row gap-4">
+                        {/* Search */}
+                        <div className="relative flex-1 min-w-[200px]">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search by name or location..."
+                                className="w-full rounded-lg border border-slate-300 pl-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+
+                        {/* Filters */}
+                        <div className="flex flex-wrap gap-2 items-center">
+                            <select
+                                className="rounded-lg border border-slate-300 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white"
+                                value={filterType}
+                                onChange={(e) => setFilterType(e.target.value)}
+                            >
+                                {uniqueTypes.map(type => (
+                                    <option key={type} value={type}>{type === 'All' ? 'All Types' : type}</option>
+                                ))}
+                            </select>
+
+                            <select
+                                className="rounded-lg border border-slate-300 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white max-w-[150px]"
+                                value={filterLocation}
+                                onChange={(e) => setFilterLocation(e.target.value)}
+                            >
+                                {uniqueLocations.map(loc => (
+                                    <option key={loc} value={loc}>{loc === 'All' ? 'All Locations' : loc}</option>
+                                ))}
+                            </select>
+
+                            <select
+                                className="rounded-lg border border-slate-300 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white max-w-[150px]"
+                                value={filterSize}
+                                onChange={(e) => setFilterSize(e.target.value)}
+                            >
+                                {uniqueSizes.map(size => (
+                                    <option key={size} value={size}>{size === 'All' ? 'All Sizes' : size}</option>
+                                ))}
+                            </select>
+
+                            <select
+                                className="rounded-lg border border-slate-300 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white"
+                                value={filterPrice}
+                                onChange={(e) => setFilterPrice(e.target.value)}
+                            >
+                                <option value="All">All Prices</option>
+                                <option value="Under 1000">Under RM 1,000</option>
+                                <option value="1000-5000">RM 1,000 - RM 5,000</option>
+                                <option value="5000-10000">RM 5,000 - RM 10,000</option>
+                                <option value="Above 10000">Above RM 10,000</option>
+                            </select>
+
+                            <select
+                                className="rounded-lg border border-slate-300 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white"
+                                value={filterStatus}
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                            >
+                                <option value="All">All Status</option>
+                                <option value="Available">Available</option>
+                                <option value="Booked">Booked</option>
+                            </select>
+
+                            {(filterType !== 'All' || filterLocation !== 'All' || filterStatus !== 'All' || filterPrice !== 'All' || filterSize !== 'All' || searchTerm) && (
+                                <button
+                                    onClick={clearFilters}
+                                    className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Clear Filters"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
 
