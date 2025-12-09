@@ -59,6 +59,29 @@ export default function MediaPage() {
     const uniqueSizes = ['All', ...Array.from(new Set(media.map(m => m.size || 'Unspecified'))).sort()];
 
 
+    const getSortValue = (item: Billboard, key: string) => {
+        switch (key) {
+            case 'price':
+                return Number(item.price) || 0;
+            case 'skuId':
+                const id = item.skuId || item.code || '';
+                // Try to extract numeric part for natural sort if possible, else return string
+                return id.toLowerCase();
+            case 'status':
+                return item.available ? 1 : 0; // Booked (0) vs Available (1)
+            case 'approval':
+                // Custom order: pending < draft < published
+                const status = item.verificationStatus || 'published';
+                const order = { 'pending': 0, 'draft': 1, 'published': 2 };
+                return order[status as keyof typeof order] ?? 2;
+            case 'location':
+            case 'name':
+            case 'type':
+            default:
+                return (item[key] || '').toString().toLowerCase();
+        }
+    };
+
     const filteredMedia = media.filter(item => {
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = (
@@ -95,10 +118,14 @@ export default function MediaPage() {
     }).sort((a, b) => {
         if (!sortConfig) return 0;
         const { key, direction } = sortConfig;
-        if (a[key] < b[key]) {
+
+        const valA = getSortValue(a, key);
+        const valB = getSortValue(b, key);
+
+        if (valA < valB) {
             return direction === 'asc' ? -1 : 1;
         }
-        if (a[key] > b[key]) {
+        if (valA > valB) {
             return direction === 'asc' ? 1 : -1;
         }
         return 0;
@@ -328,7 +355,10 @@ export default function MediaPage() {
         setSearchTerm('');
     };
 
-
+    const SortIcon = ({ columnKey }: { columnKey: string }) => {
+        if (sortConfig?.key !== columnKey) return <span className="text-slate-300 opacity-50 ml-1">⇅</span>;
+        return <span className="text-blue-600 ml-1">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>;
+    };
 
     return (
         <div className="space-y-8">
@@ -489,30 +519,69 @@ export default function MediaPage() {
                                         />
                                     </th>
                                 )}
-                                <th className="h-12 px-6 align-middle font-semibold text-slate-600">SKU ID</th>
-                                <th className="h-12 px-6 align-middle font-semibold text-slate-600">Name</th>
-                                <th className="h-12 px-6 align-middle font-semibold text-slate-600">Location</th>
+                                <th
+                                    className="h-12 px-6 align-middle font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                                    onClick={() => requestSort('skuId')}
+                                >
+                                    <div className="flex items-center gap-1">
+                                        SKU ID <SortIcon columnKey="skuId" />
+                                    </div>
+                                </th>
+                                <th
+                                    className="h-12 px-6 align-middle font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                                    onClick={() => requestSort('name')}
+                                >
+                                    <div className="flex items-center gap-1">
+                                        Name <SortIcon columnKey="name" />
+                                    </div>
+                                </th>
+                                <th
+                                    className="h-12 px-6 align-middle font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                                    onClick={() => requestSort('location')}
+                                >
+                                    <div className="flex items-center gap-1">
+                                        Location <SortIcon columnKey="location" />
+                                    </div>
+                                </th>
                                 <th
                                     className="h-12 px-6 align-middle font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
                                     onClick={() => requestSort('type')}
                                 >
                                     <div className="flex items-center gap-1">
-                                        Type
-                                        {sortConfig?.key === 'type' && (
-                                            <span className="text-xs">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
-                                        )}
+                                        Type <SortIcon columnKey="type" />
                                     </div>
                                 </th>
-                                <th className="h-12 px-6 align-middle font-semibold text-slate-600">Price</th>
-                                <th className="h-12 px-6 align-middle font-semibold text-slate-600">Approval</th>
-                                <th className="h-12 px-6 align-middle font-semibold text-slate-600">Status</th>
+                                <th
+                                    className="h-12 px-6 align-middle font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                                    onClick={() => requestSort('price')}
+                                >
+                                    <div className="flex items-center gap-1">
+                                        Price <SortIcon columnKey="price" />
+                                    </div>
+                                </th>
+                                <th
+                                    className="h-12 px-6 align-middle font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                                    onClick={() => requestSort('approval')}
+                                >
+                                    <div className="flex items-center gap-1">
+                                        Approval <SortIcon columnKey="approval" />
+                                    </div>
+                                </th>
+                                <th
+                                    className="h-12 px-6 align-middle font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 transition-colors"
+                                    onClick={() => requestSort('status')}
+                                >
+                                    <div className="flex items-center gap-1">
+                                        Status <SortIcon columnKey="status" />
+                                    </div>
+                                </th>
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={8} className="p-8 text-center text-slate-500">
+                                    <td colSpan={9} className="p-8 text-center text-slate-500">
                                         <div className="flex justify-center items-center gap-2">
                                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
                                             Loading media...
@@ -521,7 +590,7 @@ export default function MediaPage() {
                                 </tr>
                             ) : filteredMedia.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="p-12 text-center">
+                                    <td colSpan={9} className="p-12 text-center">
                                         <div className="flex flex-col items-center justify-center text-slate-500">
                                             <Search className="h-12 w-12 mb-4 text-slate-300" />
                                             <p className="text-lg font-medium text-slate-900">No media found</p>
