@@ -104,9 +104,9 @@ export default function CustomersPage() {
     };
 
     const handleCopyLink = () => {
-        const path = '/client-registration';
+        const path = '/client-form';
         navigator.clipboard.writeText(path);
-        showAlert('Link Copied', 'Copied "/client-registration" to clipboard. Append this to your main website domain.', 'success');
+        showAlert('Link Copied', 'Copied "/client-form" to clipboard. Append this to your main website domain.', 'success');
     };
 
     const filteredCustomers = customers.filter(c =>
