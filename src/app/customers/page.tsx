@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useModal } from '@/context/ModalContext';
-import { Mail, Phone, User, Search, Plus, Trash2 } from 'lucide-react';
+import { Mail, Phone, User, Search, Plus, Trash2, Edit } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 
@@ -242,9 +242,14 @@ export default function CustomersPage() {
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             {userData?.role?.toLowerCase() === 'administrator' && (
-                                                <button onClick={() => handleDelete(customer.id)} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-md transition-colors">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </button>
+                                                <div className="flex justify-end gap-2">
+                                                    <Link href={`/customers/${customer.id}`} className="p-2 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-md transition-colors">
+                                                        <Edit className="h-4 w-4" />
+                                                    </Link>
+                                                    <button onClick={() => handleDelete(customer.id)} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-md transition-colors">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </div>
                                             )}
                                         </td>
                                     </tr>

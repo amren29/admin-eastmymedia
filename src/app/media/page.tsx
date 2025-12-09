@@ -13,6 +13,7 @@ interface Billboard {
     id: string;
     name: string;
     location: string;
+    region?: string;
     type: string;
     price: number;
     available: boolean;
@@ -42,7 +43,7 @@ export default function MediaPage() {
 
     // Filters
     const [filterType, setFilterType] = useState('All');
-    const [filterLocation, setFilterLocation] = useState('All');
+    const [filterRegion, setFilterRegion] = useState('All');
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterPrice, setFilterPrice] = useState('All');
     const [filterSize, setFilterSize] = useState('All');
@@ -51,7 +52,7 @@ export default function MediaPage() {
 
     // Derived unique values for dropdowns
     const uniqueTypes = ['All', ...Array.from(new Set(media.map(m => m.type || 'Unspecified'))).sort()];
-    const uniqueLocations = ['All', ...Array.from(new Set(media.map(m => m.location || 'Unspecified'))).sort()];
+    const uniqueRegions = ['All', 'Sabah', 'Sarawak'];
     const uniqueSizes = ['All', ...Array.from(new Set(media.map(m => m.size || 'Unspecified'))).sort()];
 
 
@@ -60,13 +61,14 @@ export default function MediaPage() {
         const matchesSearch = (
             item.name.toLowerCase().includes(searchLower) ||
             item.location.toLowerCase().includes(searchLower) ||
+            (item.region && item.region.toLowerCase().includes(searchLower)) ||
             (item.skuId && item.skuId.toLowerCase().includes(searchLower)) ||
             (item.code && item.code.toLowerCase().includes(searchLower)) ||
             item.type.toLowerCase().includes(searchLower)
         );
 
         const matchesType = filterType === 'All' || item.type === filterType;
-        const matchesLocation = filterLocation === 'All' || item.location === filterLocation;
+        const matchesRegion = filterRegion === 'All' || (item.region || 'Sabah') === filterRegion;
         const matchesSize = filterSize === 'All' || (item.size || 'Unspecified') === filterSize;
         const matchesStatus = filterStatus === 'All'
             ? true
@@ -84,7 +86,7 @@ export default function MediaPage() {
             }
         }
 
-        return matchesSearch && matchesType && matchesLocation && matchesStatus && matchesPrice && matchesSize;
+        return matchesSearch && matchesType && matchesRegion && matchesStatus && matchesPrice && matchesSize;
     }).sort((a, b) => {
         if (!sortConfig) return 0;
         const { key, direction } = sortConfig;
@@ -284,7 +286,7 @@ export default function MediaPage() {
 
     const clearFilters = () => {
         setFilterType('All');
-        setFilterLocation('All');
+        setFilterRegion('All');
         setFilterStatus('All');
         setFilterPrice('All');
         setFilterSize('All');
@@ -373,11 +375,11 @@ export default function MediaPage() {
 
                             <select
                                 className="rounded-lg border border-slate-300 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white max-w-[150px]"
-                                value={filterLocation}
-                                onChange={(e) => setFilterLocation(e.target.value)}
+                                value={filterRegion}
+                                onChange={(e) => setFilterRegion(e.target.value)}
                             >
-                                {uniqueLocations.map(loc => (
-                                    <option key={loc} value={loc}>{loc === 'All' ? 'All Locations' : loc}</option>
+                                {uniqueRegions.map(reg => (
+                                    <option key={reg} value={reg}>{reg === 'All' ? 'All Regions' : reg}</option>
                                 ))}
                             </select>
 
@@ -413,7 +415,7 @@ export default function MediaPage() {
                                 <option value="Booked">Booked</option>
                             </select>
 
-                            {(filterType !== 'All' || filterLocation !== 'All' || filterStatus !== 'All' || filterPrice !== 'All' || filterSize !== 'All' || searchTerm) && (
+                            {(filterType !== 'All' || filterRegion !== 'All' || filterStatus !== 'All' || filterPrice !== 'All' || filterSize !== 'All' || searchTerm) && (
                                 <button
                                     onClick={clearFilters}
                                     className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
