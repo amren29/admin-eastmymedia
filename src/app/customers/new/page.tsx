@@ -13,17 +13,27 @@ export default function NewCustomerPage() {
     const { showAlert, showModal } = useModal();
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
-        name: '',
+        name: '', // Used for Person In Charge/Main Display Name
         email: '',
         phone: '',
         companyName: '',
-        address: ''
+        registrationNo: '',
+        category: '',
+        address: '',
+        officeNo: '',
+        personInCharge: '',
+        position: '',
+        sst: ''
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.email || !formData.name) {
-            showAlert('Missing Information', 'Name and Email are required', 'warning');
+
+        // Ensure name is synced with personInCharge if empty or update it
+        const finalName = formData.personInCharge || formData.name;
+
+        if (!formData.email || !finalName || !formData.companyName) {
+            showAlert('Missing Information', 'Company Name, PIC Name and Email are required', 'warning');
             return;
         }
 
@@ -41,6 +51,7 @@ export default function NewCustomerPage() {
 
             await setDoc(customerRef, {
                 ...formData,
+                name: finalName, // Main display name = PIC
                 email: customerId, // Ensure lowercase email is stored
                 createdAt: new Date().toISOString(),
                 lastActiveAt: new Date().toISOString(),
@@ -69,16 +80,131 @@ export default function NewCustomerPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
+                <div className="grid md:grid-cols-2 gap-6">
+                    {/* Basic Information */}
+                    <div className="md:col-span-2">
+                        <h3 className="text-lg font-semibold text-slate-800 mb-4 border-b pb-2">Company Information</h3>
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Company Name *</label>
                         <input
                             type="text"
                             required
                             className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            placeholder="John Doe"
+                            value={formData.companyName}
+                            onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                            placeholder="Acme Sdn Bhd"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Registration / SSM No.</label>
+                        <input
+                            type="text"
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                            value={formData.registrationNo}
+                            onChange={(e) => setFormData({ ...formData, registrationNo: e.target.value })}
+                            placeholder="202301001234 (1234567-X)"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                        <select
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                            value={formData.category}
+                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        >
+                            <option value="">Select Industry</option>
+                            <option value="Food & Beverage">Food & Beverage (F&B)</option>
+                            <option value="Retail & E-commerce">Retail & E-commerce</option>
+                            <option value="Technology & Software">Technology & Software</option>
+                            <option value="Healthcare & Wellness">Healthcare & Wellness</option>
+                            <option value="Property & Real Estate">Property & Real Estate</option>
+                            <option value="Education & Training">Education & Training</option>
+                            <option value="Manufacturing & Industrial">Manufacturing & Industrial</option>
+                            <option value="Finance & Insurance">Finance & Insurance</option>
+                            <option value="Professional Services">Professional Services</option>
+                            <option value="Travel & Hospitality">Travel & Hospitality</option>
+                            <option value="Government & NGO">Government & NGO</option>
+                            <option value="Automotive">Automotive</option>
+                            <option value="Others">Others</option>
+                        </select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Address *</label>
+                        <textarea
+                            required
+                            rows={3}
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                            value={formData.address}
+                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                            placeholder="Full business address..."
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Office Number</label>
+                        <input
+                            type="tel"
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                            value={formData.officeNo}
+                            onChange={(e) => setFormData({ ...formData, officeNo: e.target.value })}
+                            placeholder="+60 3-1234 5678"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">SST Registration No. (Optional)</label>
+                        <input
+                            type="text"
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                            value={formData.sst}
+                            onChange={(e) => setFormData({ ...formData, sst: e.target.value })}
+                            placeholder="W10-2008-12345678"
+                        />
+                    </div>
+
+                    {/* Contact Person */}
+                    <div className="md:col-span-2 mt-4">
+                        <h3 className="text-lg font-semibold text-slate-800 mb-4 border-b pb-2">Person In Charge (PIC)</h3>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Full Name (PIC) *</label>
+                        <input
+                            type="text"
+                            required
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                            value={formData.personInCharge}
+                            onChange={(e) => setFormData({ ...formData, personInCharge: e.target.value })} // Map to personInCharge, main name field will store this or company name? Usually Name is the contact person main name. Let's keep name as PIC name to be consistent or add logic.
+                            placeholder="Jane Doe"
+                        />
+                        <p className="text-xs text-slate-500 mt-1">This will be the primary contact name.</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Position</label>
+                        <input
+                            type="text"
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                            value={formData.position}
+                            onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                            placeholder="Marketing Manager"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Number *</label>
+                        <input
+                            type="tel"
+                            required
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            placeholder="+60 12-345 6789"
                         />
                     </div>
 
@@ -90,40 +216,7 @@ export default function NewCustomerPage() {
                             className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            placeholder="john@example.com"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
-                        <input
-                            type="tel"
-                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            placeholder="+60 12-345 6789"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
-                        <input
-                            type="text"
-                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            value={formData.companyName}
-                            onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                            placeholder="Acme Corp"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
-                        <textarea
-                            rows={3}
-                            className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                            value={formData.address}
-                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                            placeholder="Client's address..."
+                            placeholder="jane@company.com"
                         />
                     </div>
                 </div>
