@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, use } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useModal } from '@/context/ModalContext';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 
-export default function EditCustomerPage({ params }: { params: { id: string } }) {
+export default function EditCustomerPage() {
     const router = useRouter();
+    const params = useParams(); // Use useParams hook
     const { showAlert, showModal } = useModal();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -24,9 +25,13 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
     useEffect(() => {
         const fetchCustomer = async () => {
             try {
-                // Determine ID (params might be a promise in newer Next.js versions, but typically string here for this setup)
-                // If using standard pages router or older app router, params is available.
-                const customerId = decodeURIComponent(params.id);
+                // In Next.js App Router client components, using useParams is safer.
+                // params.id might be string or string[].
+                const rawId = params?.id;
+
+                if (!rawId) return;
+
+                const customerId = decodeURIComponent(Array.isArray(rawId) ? rawId[0] : rawId);
                 const docRef = doc(db, 'customers', customerId);
                 const docSnap = await getDoc(docRef);
 
@@ -51,10 +56,12 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
             }
         };
 
-        if (params.id) {
+        if (params?.id) {
             fetchCustomer();
+        } else if (params && Object.keys(params).length === 0) {
+            // Wait for params to hydrate
         }
-    }, [params.id, router, showAlert]);
+    }, [params, router, showAlert]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -65,7 +72,9 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
 
         setSaving(true);
         try {
-            const customerId = decodeURIComponent(params.id);
+            const rawId = params?.id;
+            if (!rawId) throw new Error("No customer ID");
+            const customerId = decodeURIComponent(Array.isArray(rawId) ? rawId[0] : rawId);
             const customerRef = doc(db, 'customers', customerId);
 
             await updateDoc(customerRef, {
