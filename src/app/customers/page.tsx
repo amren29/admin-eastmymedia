@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, doc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useModal } from '@/context/ModalContext';
-import { Mail, Phone, User, Search, Plus, Trash2, Edit } from 'lucide-react';
+import { Mail, Phone, User, Search, Plus, Trash2, Edit, Link as LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 
@@ -103,6 +103,12 @@ export default function CustomersPage() {
         );
     };
 
+    const handleCopyLink = () => {
+        const path = '/client-registration';
+        navigator.clipboard.writeText(path);
+        showAlert('Link Copied', 'Copied "/client-registration" to clipboard. Append this to your main website domain.', 'success');
+    };
+
     const filteredCustomers = customers.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -136,6 +142,14 @@ export default function CustomersPage() {
                     <p className="text-slate-500">Manage your client base.</p>
                 </div>
                 <div className="flex gap-2">
+                    <button
+                        onClick={handleCopyLink}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50"
+                        title="Copy Public Registration Page Link"
+                    >
+                        <LinkIcon className="h-4 w-4" />
+                        Registration Link
+                    </button>
                     {userData?.role?.toLowerCase() === 'administrator' && selectedIds.size > 0 && (
                         <button
                             onClick={handleBulkDelete}
