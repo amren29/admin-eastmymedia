@@ -7,7 +7,14 @@ export async function DELETE(
 ) {
     try {
         if (!adminAuth) {
-            return NextResponse.json({ error: 'Server configuration error: Firebase Admin not initialized. Please add FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY to .env.local' }, { status: 500 });
+            const missingVars = [];
+            if (!process.env.FIREBASE_CLIENT_EMAIL && !process.env.NEXT_PUBLIC_FIREBASE_CLIENT_EMAIL) missingVars.push('FIREBASE_CLIENT_EMAIL');
+            if (!process.env.FIREBASE_PRIVATE_KEY && !process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY) missingVars.push('FIREBASE_PRIVATE_KEY');
+            if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) missingVars.push('NEXT_PUBLIC_FIREBASE_PROJECT_ID');
+
+            return NextResponse.json({
+                error: `Server configuration error: Firebase Admin not initialized. Missing: ${missingVars.join(', ')}`
+            }, { status: 500 });
         }
 
         const { id } = await params;

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Edit, Trash2, Upload, Filter, X } from 'lucide-react';
-import { collection, getDocs, deleteDoc, doc, writeBatch, addDoc } from 'firebase/firestore';
+import { Plus, Search, Edit, Trash2, Upload, Filter, X, Check } from 'lucide-react';
+import { collection, getDocs, deleteDoc, doc, writeBatch, addDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
@@ -17,6 +17,7 @@ interface Billboard {
     type: string;
     price: number;
     available: boolean;
+    verificationStatus?: 'draft' | 'pending' | 'published';
     size?: string;
     rentalRates?: {
         id: string;
@@ -42,9 +43,11 @@ export default function MediaPage() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     // Filters
+    // Filters
     const [filterType, setFilterType] = useState('All');
     const [filterRegion, setFilterRegion] = useState('All');
     const [filterStatus, setFilterStatus] = useState('All');
+    const [filterVerification, setFilterVerification] = useState('All');
     const [filterPrice, setFilterPrice] = useState('All');
     const [filterSize, setFilterSize] = useState('All');
 
@@ -75,6 +78,8 @@ export default function MediaPage() {
             : filterStatus === 'Available' ? item.available
                 : !item.available; // Booked
 
+        const matchesVerification = filterVerification === 'All' || (item.verificationStatus || 'published') === filterVerification;
+
         let matchesPrice = true;
         if (filterPrice !== 'All') {
             const price = Number(item.price) || 0;
@@ -86,7 +91,7 @@ export default function MediaPage() {
             }
         }
 
-        return matchesSearch && matchesType && matchesRegion && matchesStatus && matchesPrice && matchesSize;
+        return matchesSearch && matchesType && matchesRegion && matchesStatus && matchesPrice && matchesSize && matchesVerification;
     }).sort((a, b) => {
         if (!sortConfig) return 0;
         const { key, direction } = sortConfig;
@@ -123,6 +128,35 @@ export default function MediaPage() {
             console.error("Error fetching media:", error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleApprove = async (id: string, e: React.MouseEvent) => {
+        e.preventDefault();
+        if (userData?.role?.toLowerCase() !== 'administrator') return;
+
+        try {
+            await updateDoc(doc(db, 'billboards', id), {
+                verificationStatus: 'published',
+                updatedAt: new Date().toISOString()
+            });
+
+            setMedia(media.map(item =>
+                item.id === id ? { ...item, verificationStatus: 'published' } : item
+            ));
+
+            showModal({
+                title: 'Success',
+                message: 'Media approved and published successfully',
+                type: 'success'
+            });
+        } catch (error) {
+            console.error("Error approving media:", error);
+            showModal({
+                title: 'Error',
+                message: 'Failed to approve media',
+                type: 'danger'
+            });
         }
     };
 
@@ -243,6 +277,7 @@ export default function MediaPage() {
                             code: item.code || item.skuId || '',
                             skuId: item.skuId || item.code || '',
                             image: item.image || '',
+                            verificationStatus: userData?.role?.toLowerCase() === 'administrator' ? 'published' : 'pending',
                             createdAt: new Date().toISOString(),
                             ...item
                         };
@@ -393,6 +428,18 @@ export default function MediaPage() {
                                 ))}
                             </select>
 
+                            {/* Verification Status Filter */}
+                            <select
+                                className="rounded-lg border border-slate-300 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white"
+                                value={filterVerification}
+                                onChange={(e) => setFilterVerification(e.target.value)}
+                            >
+                                <option value="All">All Verification</option>
+                                <option value="published">Published</option>
+                                <option value="pending">Pending Approval</option>
+                                <option value="draft">Drafts</option>
+                            </select>
+
                             <select
                                 className="rounded-lg border border-slate-300 py-2 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white"
                                 value={filterPrice}
@@ -457,6 +504,7 @@ export default function MediaPage() {
                                     </div>
                                 </th>
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600">Price</th>
+                                <th className="h-12 px-6 align-middle font-semibold text-slate-600">Approval</th>
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600">Status</th>
                                 <th className="h-12 px-6 align-middle font-semibold text-slate-600 text-right">Actions</th>
                             </tr>
@@ -464,7 +512,7 @@ export default function MediaPage() {
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="p-8 text-center text-slate-500">
+                                    <td colSpan={8} className="p-8 text-center text-slate-500">
                                         <div className="flex justify-center items-center gap-2">
                                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
                                             Loading media...
@@ -473,7 +521,7 @@ export default function MediaPage() {
                                 </tr>
                             ) : filteredMedia.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-12 text-center">
+                                    <td colSpan={8} className="p-12 text-center">
                                         <div className="flex flex-col items-center justify-center text-slate-500">
                                             <Search className="h-12 w-12 mb-4 text-slate-300" />
                                             <p className="text-lg font-medium text-slate-900">No media found</p>
@@ -515,6 +563,22 @@ export default function MediaPage() {
                                             </div>
                                         </td>
                                         <td className="p-4 px-6 align-middle">
+                                            {/* Verification Status Badge */}
+                                            {(() => {
+                                                const status = item.verificationStatus || 'published';
+                                                switch (status) {
+                                                    case 'draft':
+                                                        return <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">Draft</span>;
+                                                    case 'pending':
+                                                        return <span className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800">Pending</span>;
+                                                    case 'published':
+                                                        return <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">Published</span>;
+                                                    default:
+                                                        return null;
+                                                }
+                                            })()}
+                                        </td>
+                                        <td className="p-4 px-6 align-middle">
                                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${item.available ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20'}`}>
                                                 <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${item.available ? 'bg-green-600' : 'bg-red-600'}`}></span>
                                                 {item.available ? 'Available' : 'Booked'}
@@ -522,6 +586,17 @@ export default function MediaPage() {
                                         </td>
                                         <td className="p-4 px-6 align-middle text-right">
                                             <div className="flex justify-end gap-2">
+                                                {/* Approve Button for Admins on Pending items */}
+                                                {userData?.role?.toLowerCase() === 'administrator' && item.verificationStatus === 'pending' && (
+                                                    <button
+                                                        onClick={(e) => handleApprove(item.id, e)}
+                                                        className="p-2 hover:bg-green-50 text-slate-400 hover:text-green-600 rounded-md transition-colors"
+                                                        title="Approve & Publish"
+                                                    >
+                                                        <Check className="h-4 w-4" />
+                                                    </button>
+                                                )}
+
                                                 <Link href={`/media/${item.id}`} className="p-2 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-md transition-colors">
                                                     <Edit className="h-4 w-4" />
                                                 </Link>

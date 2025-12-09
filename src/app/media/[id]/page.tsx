@@ -7,6 +7,7 @@ import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase
 import { db, storage } from '@/lib/firebase';
 import { use } from 'react';
 import { useModal } from '@/context/ModalContext';
+import { useAuth } from '@/context/AuthContext';
 import { MapPin } from 'lucide-react';
 import MapPicker from '@/components/MapPicker';
 
@@ -29,6 +30,7 @@ export default function MediaFormPage({ params }: MediaFormProps) {
     const router = useRouter();
     const resolvedParams = use(params);
     const isEditMode = !!resolvedParams.id;
+    const { userData } = useAuth();
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -104,6 +106,7 @@ export default function MediaFormPage({ params }: MediaFormProps) {
         location: '',
         type: 'Static', // Static, LED Screen, Roadside Bunting, Car Wrap
         available: true,
+        verificationStatus: 'published', // Default, will be handled by logic
         totalPanel: 1,
 
         // Technical Info
@@ -152,6 +155,10 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                     ...data,
                     rentalRates: data.rentalRates || []
                 } as any);
+                // If existing media has no status, default to published for UI
+                if (!data.verificationStatus) {
+                    setFormData(prev => ({ ...prev, verificationStatus: 'published' }));
+                }
             }
         } catch (error) {
             console.error("Error fetching media:", error);
@@ -287,8 +294,8 @@ export default function MediaFormPage({ params }: MediaFormProps) {
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (e: React.FormEvent | null, targetStatus: 'draft' | 'pending' | 'published' = 'published') => {
+        if (e) e.preventDefault();
         setLoading(true);
 
         try {
@@ -306,6 +313,14 @@ export default function MediaFormPage({ params }: MediaFormProps) {
             // Use the first rental rate price as the base price for listing display
             const basePrice = formData.rentalRates.length > 0 ? formData.rentalRates[0].rentalPrice : 0;
 
+            // Determine Status Logic based on Role
+            let finalStatus = targetStatus;
+
+            // Non-admins cannot publish directly, default to pending if they try (though UI should prevent)
+            if (userData?.role?.toLowerCase() !== 'administrator' && targetStatus === 'published') {
+                finalStatus = 'pending';
+            }
+
             const dataToSave = {
                 ...formData,
                 price: basePrice, // Maintain backward compatibility for listing
@@ -313,6 +328,7 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                 height: Number(formData.height),
                 latitude,
                 longitude,
+                verificationStatus: finalStatus,
                 updatedAt: new Date().toISOString(),
             };
 
@@ -324,6 +340,13 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                     createdAt: new Date().toISOString(),
                 });
             }
+
+            showModal({
+                title: 'Success',
+                message: targetStatus === 'draft' ? 'Saved as Draft' : targetStatus === 'pending' ? 'Submitted for Approval' : 'Media Published',
+                type: 'success'
+            });
+
             router.push('/media');
         } catch (error) {
             console.error("Error saving media:", error);
@@ -348,7 +371,7 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                 </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form className="space-y-8">
                 {/* 1. Media Information */}
                 <div className="bg-white p-6 rounded-lg shadow-sm space-y-6">
                     <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Media Information</h3>
@@ -799,8 +822,8 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                                                 type="number"
                                                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm px-3 py-2 no-spinner"
                                                 value={rate.rentalPrice || ''}
-                                                onChange={(e) => updateRentalRate(rate.id, 'rentalPrice', e.target.value === '' ? 0 : Number(e.target.value))}
-                                                placeholder="0"
+                                                onChange={(e) => updateRentalRate(rate.id, 'rentalPrice', e.target.value)}
+                                                placeholder="0.00"
                                             />
                                         </td>
                                         <td className="px-6 py-4">
@@ -808,8 +831,8 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                                                 type="number"
                                                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm px-3 py-2 no-spinner"
                                                 value={rate.productionCost || ''}
-                                                onChange={(e) => updateRentalRate(rate.id, 'productionCost', e.target.value === '' ? 0 : Number(e.target.value))}
-                                                placeholder="0"
+                                                onChange={(e) => updateRentalRate(rate.id, 'productionCost', e.target.value)}
+                                                placeholder="0.00"
                                             />
                                         </td>
                                         <td className="px-6 py-4">
@@ -819,42 +842,31 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                                                 onChange={(e) => updateRentalRate(rate.id, 'rateType', e.target.value)}
                                             >
                                                 <option value="Standard">Standard</option>
-                                                <option value="Offer">Offer (10%)</option>
-                                                <option value="Agency">Agency (15%)</option>
-                                                <option value="Referral">Referral (5%)</option>
+                                                <option value="Offer">Offer</option>
+                                                <option value="Agency">Agency</option>
+                                                <option value="Referral">Referral</option>
                                             </select>
                                         </td>
                                         <td className="px-6 py-4">
                                             <input
                                                 type="number"
-                                                className="block w-full rounded-md border-gray-300 bg-gray-50 text-gray-500 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm px-3 py-2 no-spinner"
-                                                value={rate.discount}
-                                                readOnly
+                                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm px-3 py-2 no-spinner"
+                                                value={rate.discount || ''}
+                                                onChange={(e) => updateRentalRate(rate.id, 'discount', e.target.value)}
                                             />
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <input
-                                                type="number"
-                                                className="block w-full rounded-md border-gray-300 bg-gray-50 text-gray-500 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm px-3 py-2 no-spinner"
-                                                value={rate.sst}
-                                                readOnly
-                                            />
+                                        <td className="px-6 py-4 text-sm text-gray-500">
+                                            RM {rate.sst?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <input
-                                                type="number"
-                                                className="block w-full rounded-md border-gray-300 bg-gray-50 font-medium text-gray-900 shadow-sm focus:border-teal-500 focus:ring-teal-500 text-sm px-3 py-2 no-spinner"
-                                                value={rate.total}
-                                                readOnly
-                                            />
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                                            RM {rate.total?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <button
                                                 type="button"
                                                 onClick={() => removeRentalRate(rate.id)}
-                                                className="text-gray-400 hover:text-red-600 transition-colors p-2 hover:bg-red-50 rounded-full"
+                                                className="text-red-400 hover:text-red-600 transition-colors p-1 rounded-md hover:bg-red-50"
                                             >
-                                                <span className="sr-only">Remove</span>
                                                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                 </svg>
@@ -866,25 +878,14 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                         </table>
                         {formData.rentalRates.length === 0 && (
                             <div className="text-center py-12">
-                                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-teal-100 mb-4">
-                                    <svg className="h-6 w-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </div>
-                                <h3 className="text-sm font-medium text-gray-900">No rental rates</h3>
-                                <p className="mt-1 text-sm text-gray-500">Get started by adding a new rental rate.</p>
-                                <div className="mt-6">
-                                    <button
-                                        type="button"
-                                        onClick={addRentalRate}
-                                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-                                    >
-                                        <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                                        </svg>
-                                        Add Rate
-                                    </button>
-                                </div>
+                                <p className="text-sm text-gray-500">No rental rates configured.</p>
+                                <button
+                                    type="button"
+                                    onClick={addRentalRate}
+                                    className="mt-2 text-teal-600 hover:text-teal-700 text-sm font-medium"
+                                >
+                                    Add your first rate
+                                </button>
                             </div>
                         )}
                     </div>
@@ -898,13 +899,37 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                     >
                         Cancel
                     </button>
+
+                    {/* Save as Draft Button */}
                     <button
-                        type="submit"
+                        type="button"
+                        onClick={(e) => handleSubmit(e, 'draft')}
                         disabled={loading}
-                        className="inline-flex justify-center rounded-md border border-transparent bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
+                        className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
                     >
-                        {loading ? 'Saving...' : 'Save Media'}
+                        Save as Draft
                     </button>
+
+                    {/* Submit/Publish Button */}
+                    {userData?.role?.toLowerCase() === 'administrator' ? (
+                        <button
+                            type="button"
+                            onClick={(e) => handleSubmit(e, 'published')}
+                            disabled={loading}
+                            className="inline-flex justify-center rounded-md border border-transparent bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
+                        >
+                            {loading ? 'Saving...' : 'Publish'}
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={(e) => handleSubmit(e, 'pending')}
+                            disabled={loading}
+                            className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                        >
+                            {loading ? 'Submitting...' : 'Submit for Approval'}
+                        </button>
+                    )}
                 </div>
             </form>
             <style jsx global>{`
