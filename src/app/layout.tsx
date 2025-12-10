@@ -9,6 +9,10 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Admin Panel - Eastmy Media",
   description: "Admin dashboard for Eastmy Media",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function RootLayout({
