@@ -37,7 +37,7 @@ export const generatePDF = async (proposal: ProposalData, settings?: any, return
 
     // Settings Defaults
     const companyName = settings?.companyName || "SBH OUTDOOR MEDIA";
-    const website = settings?.website || "www.sbhoutdoor.com";
+    const website = settings?.website || "eastmymedia.my";
     const footerText = settings?.footerText || "Your Gateway to Audience";
     const sstRate = (settings?.sstRate || 8) / 100;
     const logoText = settings?.logoUrl || companyName; // Using logoUrl field for text logo for now
@@ -54,7 +54,9 @@ export const generatePDF = async (proposal: ProposalData, settings?: any, return
     const getImageProperties = (url: string): Promise<{ width: number; height: number; ratio: number; data: string }> => {
         return new Promise(async (resolve, reject) => {
             try {
-                const response = await fetch(url);
+                // Use proxy to avoid CORS issues
+                const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
                 const blob = await response.blob();
                 const reader = new FileReader();
                 reader.onloadend = () => {
@@ -167,12 +169,54 @@ export const generatePDF = async (proposal: ProposalData, settings?: any, return
             doc.text("No Image", sideMargin + colWidth / 2, startY + imgHeight / 2, { align: 'center' });
         }
 
-        // Column 2: Map Image (Placeholder)
+        // Column 2: Map Image
         const col2X = sideMargin + colWidth + colGap;
-        doc.setFillColor(245, 245, 245);
-        doc.rect(col2X, startY, colWidth, imgHeight, 'F');
-        doc.setTextColor(150, 150, 150);
-        doc.text("Map View Placeholder", col2X + colWidth / 2, startY + imgHeight / 2, { align: 'center' });
+
+        // Try to generate Mapbox Static Image
+        let mapLoaded = false;
+        if (item.gps && process.env.NEXT_PUBLIC_MAPBOX_TOKEN) {
+            try {
+                // Parse GPS "lat, lng" -> Mapbox expects "lng,lat"
+                const [lat, lng] = item.gps.split(',').map((s: string) => s.trim());
+                if (lat && lng) {
+                    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+                    // Add red pin marker: pin-s+f00({lng},{lat})
+                    // Static API: https://api.mapbox.com/styles/v1/{username}/{style_id}/static/{overlay}/{lon},{lat},{zoom},{bearing},{pitch}/{width}x{height}@2x?access_token={token}
+                    const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-s+f00(${lng},${lat})/${lng},${lat},15,0,0/600x400?access_token=${token}`;
+
+                    const mapProps = await getImageProperties(mapUrl);
+
+                    // Calculate "contain" dimensions for map (same as main image)
+                    const boxRatio = colWidth / imgHeight;
+                    let drawW = colWidth;
+                    let drawH = imgHeight;
+                    let drawX = col2X;
+                    let drawY = startY;
+
+                    if (mapProps.ratio > boxRatio) {
+                        // Image is wider than box -> Fit to width
+                        drawH = colWidth / mapProps.ratio;
+                        drawY = startY + (imgHeight - drawH) / 2; // Center vertically
+                    } else {
+                        // Image is taller than box -> Fit to height
+                        drawW = imgHeight * mapProps.ratio;
+                        drawX = col2X + (colWidth - drawW) / 2; // Center horizontally
+                    }
+
+                    doc.addImage(mapProps.data, 'JPEG', drawX, drawY, drawW, drawH);
+                    mapLoaded = true;
+                }
+            } catch (e) {
+                console.error("Error generating static map:", e);
+            }
+        }
+
+        if (!mapLoaded) {
+            doc.setFillColor(245, 245, 245);
+            doc.rect(col2X, startY, colWidth, imgHeight, 'F');
+            doc.setTextColor(150, 150, 150);
+            doc.text("Map View Placeholder", col2X + colWidth / 2, startY + imgHeight / 2, { align: 'center' });
+        }
 
         // Column 3: Info Boxes
         const col3X = col2X + colWidth + colGap;
