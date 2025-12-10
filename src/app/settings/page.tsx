@@ -1,459 +1,402 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { updateProfile, updatePassword } from 'firebase/auth';
-import { db, auth } from '@/lib/firebase';
-import { Save, User, Lock, Phone, Mail, Briefcase } from 'lucide-react';
-
-import { useAuth } from '@/context/AuthContext';
-import { useModal } from '@/context/ModalContext';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { SystemSettings, getSystemSettings, updateSystemSettings } from '@/lib/settings';
+import { app } from '@/lib/firebase';
+import { Loader2, Save, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function SettingsPage() {
-    const { userData } = useAuth();
-    const { showAlert, showModal } = useModal();
-    const [loading, setLoading] = useState(false);
+    const router = useRouter();
+    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [formData, setFormData] = useState({
-        companyName: '',
-        address: '',
-        phone: '',
-        website: '',
-        email: '',
-        logoUrl: '',
-        sstRate: 8,
-        footerText: '',
-        bankName: '',
-        bankAccountName: '',
-        bankAccountNumber: ''
+    const [user, setUser] = useState<any>(null);
+    const [settings, setSettings] = useState<SystemSettings>({
+        enablePackages: true, // Default
+        // Initialize other fields to avoid uncontrolled input warnings
+        websiteName: '',
+        siteLogo: '',
+        favicon: '',
+        footerDescription: '',
+        copyrightText: '',
+        officeAddress: '',
+        officialEmail: '',
+        officePhone: '',
+        whatsappNumber: '',
+        googleMapsEmbed: '',
+        packagesMenuLabel: 'Packages',
+        heroTitle: '',
+        heroSubtitle: '',
+        facebookUrl: '',
+        instagramUrl: '',
+        tiktokUrl: '',
+        linkedinUrl: '',
+        whatsappMessage: ''
     });
 
-    // User Account State
-    const [displayName, setDisplayName] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [updatingProfile, setUpdatingProfile] = useState(false);
-
-    // Extended User Profile
-    const [userProfile, setUserProfile] = useState({
-        phoneNumber: '',
-        role: '',
-        email: '',
-        fullName: ''
-    });
-
-    // Check if user is allowed to edit company settings
-    const canEditCompanySettings = userData?.role && ['administrator', 'director', 'chief', 'manager'].includes(userData.role.toLowerCase());
-
     useEffect(() => {
-        if (auth.currentUser) {
-            setDisplayName(auth.currentUser.displayName || '');
-            fetchUserProfile();
-        }
-    }, [auth.currentUser]);
-
-    useEffect(() => {
-        if (canEditCompanySettings) {
-            fetchSettings();
-        }
-    }, [canEditCompanySettings]);
-
-    const fetchUserProfile = async () => {
-        if (!auth.currentUser) return;
-        try {
-            const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-            if (userDoc.exists()) {
-                const data = userDoc.data();
-                setUserProfile({
-                    phoneNumber: data.phoneNumber || '',
-                    role: data.role || '',
-                    email: data.email || auth.currentUser.email || '',
-                    fullName: data.fullName || ''
-                });
-                if (!displayName && data.fullName) {
-                    setDisplayName(data.fullName);
-                }
+        const auth = getAuth(app);
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            if (!currentUser) {
+                router.push('/login');
+                return;
             }
-        } catch (error) {
-            console.error("Error fetching user profile:", error);
-        }
-    };
+            setUser(currentUser);
+            loadSettings();
+        });
 
-    const fetchSettings = async () => {
-        setLoading(true);
+        return () => unsubscribe();
+    }, [router]);
+
+    const loadSettings = async () => {
         try {
-            const docRef = doc(db, 'settings', 'company_profile');
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                setFormData({ ...formData, ...docSnap.data() } as any);
-            }
+            const data = await getSystemSettings();
+            setSettings(prev => ({ ...prev, ...data }));
         } catch (error) {
-            console.error("Error fetching settings:", error);
+            console.error("Failed to load settings", error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!canEditCompanySettings) return;
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setSettings(prev => ({ ...prev, [name]: value }));
+    };
 
+    const handleSave = async () => {
         setSaving(true);
         try {
-            await setDoc(doc(db, 'settings', 'company_profile'), {
-                ...formData,
-                updatedAt: new Date().toISOString()
-            });
-            showAlert('Saved', 'Settings saved successfully!', 'success');
+            await updateSystemSettings(settings);
+            alert("Settings saved successfully!");
         } catch (error) {
-            console.error("Error saving settings:", error);
-            showModal({ title: 'Error', message: 'Failed to save settings', type: 'danger' });
+            console.error("Failed to save settings", error);
+            alert("Failed to save settings. Please try again.");
         } finally {
             setSaving(false);
         }
     };
 
-    const handleUpdateProfile = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!auth.currentUser) return;
-
-        setUpdatingProfile(true);
-        try {
-            // Update Display Name
-            if (displayName !== auth.currentUser.displayName) {
-                await updateProfile(auth.currentUser, {
-                    displayName: displayName
-                });
-            }
-
-            // Update Password
-            if (newPassword) {
-                if (newPassword !== confirmPassword) {
-                    showAlert('Password Mismatch', "Passwords do not match!", 'warning');
-                    setUpdatingProfile(false);
-                    return;
-                }
-                if (newPassword.length < 6) {
-                    showAlert('Weak Password', "Password must be at least 6 characters.", 'warning');
-                    setUpdatingProfile(false);
-                    return;
-                }
-                await updatePassword(auth.currentUser, newPassword);
-                setNewPassword('');
-                setConfirmPassword('');
-            }
-
-            // Also update Firestore user profile if changed
-            if (displayName !== userProfile.fullName) {
-                await setDoc(doc(db, 'users', auth.currentUser.uid), {
-                    fullName: displayName
-                }, { merge: true });
-                setUserProfile(prev => ({ ...prev, fullName: displayName }));
-            }
-
-            showAlert('Profile Updated', 'Profile updated successfully!', 'success');
-        } catch (error: any) {
-            console.error("Error updating profile:", error);
-            if (error.code === 'auth/requires-recent-login') {
-                showModal({
-                    title: 'Security Alert',
-                    message: "For security, please logout and login again to change your password.",
-                    type: 'warning'
-                });
-            } else {
-                showModal({ title: 'Error', message: 'Failed to update profile: ' + error.message, type: 'danger' });
-            }
-        } finally {
-            setUpdatingProfile(false);
+    // Placeholder until image upload is ready
+    const handleImageUpload = (field: 'siteLogo' | 'favicon') => {
+        const url = prompt(`Enter URL for ${field}:`, settings[field]);
+        if (url !== null) {
+            setSettings(prev => ({ ...prev, [field]: url }));
         }
     };
 
-    if (loading && canEditCompanySettings) {
-        return <div className="p-8 text-center">Loading settings...</div>;
+    if (loading) {
+        return (
+            <div className="flex h-screen items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-[#01a981]" />
+            </div>
+        );
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 pb-20">
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900">Settings</h2>
-                <p className="text-slate-500">
-                    Manage your profile{canEditCompanySettings ? ' and company configuration' : ''}.
-                </p>
+        <div className="p-8 max-w-5xl mx-auto pb-32">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-800">Settings</h1>
+                    <p className="text-slate-500 mt-1">Manage website content, branding, and contact details.</p>
+                </div>
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex items-center gap-2 bg-[#01a981] hover:bg-[#008f6d] text-white px-6 py-3 rounded-lg font-bold shadow-md transition-all disabled:opacity-50"
+                >
+                    {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
+                    Save Changes
+                </button>
             </div>
 
             <div className="space-y-8">
-                {/* Company Details - Only for Admins/Managers */}
-                {canEditCompanySettings && (
-                    <form onSubmit={handleSubmit} className="space-y-8">
-                        <div className="bg-white p-6 rounded-xl shadow space-y-6">
-                            <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-4">Company Profile</h3>
-
-                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
-                                    <input
-                                        type="text"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.companyName}
-                                        onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                                        placeholder="e.g. SBH OUTDOOR MEDIA"
-                                    />
-                                </div>
-
-                                <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
-                                    <textarea
-                                        rows={3}
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.address}
-                                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                        placeholder="Full company address"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                                    <input
-                                        type="text"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.phone}
-                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        placeholder="+60 12-345 6789"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Website</label>
-                                    <input
-                                        type="text"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.website}
-                                        onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                                        placeholder="www.example.com"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                                    <input
-                                        type="email"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        placeholder="contact@example.com"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Logo Text / URL</label>
-                                    <input
-                                        type="text"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.logoUrl}
-                                        onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
-                                        placeholder="Text to display as logo (e.g. SBH MEDIA)"
-                                    />
-                                    <p className="text-xs text-slate-500 mt-1">Currently using text-based logo in PDF.</p>
-                                </div>
-                            </div>
+                {/* Section 1: My Account */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h2 className="text-xl font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">My Account</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-500 mb-1">Name</label>
+                            <input
+                                type="text"
+                                value={user?.displayName || 'Admin User'}
+                                disabled
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-slate-600 cursor-not-allowed"
+                            />
                         </div>
-
-                        {/* PDF Configuration */}
-                        <div className="bg-white p-6 rounded-xl shadow space-y-6">
-                            <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-4">PDF Configuration</h3>
-
-                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">SST Rate (%)</label>
-                                    <input
-                                        type="number"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.sstRate}
-                                        onChange={(e) => setFormData({ ...formData, sstRate: Number(e.target.value) })}
-                                    />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Footer Text</label>
-                                    <input
-                                        type="text"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.footerText}
-                                        onChange={(e) => setFormData({ ...formData, footerText: e.target.value })}
-                                        placeholder="e.g. Your Gateway to East Malaysia's Audience"
-                                    />
-                                </div>
-                            </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-500 mb-1">Email</label>
+                            <input
+                                type="text"
+                                value={user?.email || ''}
+                                disabled
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-slate-600 cursor-not-allowed"
+                            />
                         </div>
-
-                        {/* Bank Account Details */}
-                        <div className="bg-white p-6 rounded-xl shadow space-y-6">
-                            <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-4">Bank Account Details</h3>
-
-                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Bank Name</label>
-                                    <input
-                                        type="text"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.bankName}
-                                        onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                                        placeholder="e.g. Maybank"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Account Name</label>
-                                    <input
-                                        type="text"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.bankAccountName}
-                                        onChange={(e) => setFormData({ ...formData, bankAccountName: e.target.value })}
-                                        placeholder="Account Holder Name"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Account Number</label>
-                                    <input
-                                        type="text"
-                                        className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={formData.bankAccountNumber}
-                                        onChange={(e) => setFormData({ ...formData, bankAccountNumber: e.target.value })}
-                                        placeholder="1234567890"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end">
-                            <button
-                                type="submit"
-                                disabled={saving}
-                                className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70 transition-colors"
-                            >
-                                <Save className="w-4 h-4" />
-                                {saving ? 'Saving...' : 'Save Settings'}
-                            </button>
-                        </div>
-                    </form>
-                )}
-
-                {/* User Account - For Everyone */}
-                <div className="bg-white p-6 rounded-xl shadow space-y-6">
-                    <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-4">User Account</h3>
-
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div className="col-span-1 sm:col-span-2">
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Display Name / Full Name</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <User className="h-5 w-5 text-slate-400" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        className="pl-10 w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                        value={displayName}
-                                        onChange={(e) => setDisplayName(e.target.value)}
-                                        placeholder="Your Name"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Mail className="h-5 w-5 text-slate-400" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        disabled
-                                        className="pl-10 w-full rounded-md border border-slate-300 px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
-                                        value={userProfile.email}
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Phone className="h-5 w-5 text-slate-400" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        disabled
-                                        className="pl-10 w-full rounded-md border border-slate-300 px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
-                                        value={userProfile.phoneNumber || 'Not provided'}
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Briefcase className="h-5 w-5 text-slate-400" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        disabled
-                                        className="pl-10 w-full rounded-md border border-slate-300 px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed capitalize"
-                                        value={userProfile.role || 'User'}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end">
-                            <button
-                                type="button"
-                                onClick={handleUpdateProfile}
-                                disabled={updatingProfile}
-                                className="bg-slate-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-slate-800 disabled:opacity-50"
-                            >
-                                {updatingProfile ? 'Updating...' : 'Update Profile'}
-                            </button>
-                        </div>
-
-                        <div className="border-t border-slate-100 pt-6">
-                            <h4 className="text-sm font-medium text-slate-900 mb-4">Change Password</h4>
-                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Lock className="h-5 w-5 text-slate-400" />
-                                        </div>
-                                        <input
-                                            type="password"
-                                            className="pl-10 w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                            value={newPassword}
-                                            onChange={(e) => setNewPassword(e.target.value)}
-                                            placeholder="New Password"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Lock className="h-5 w-5 text-slate-400" />
-                                        </div>
-                                        <input
-                                            type="password"
-                                            className="pl-10 w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                                            value={confirmPassword}
-                                            onChange={(e) => setConfirmPassword(e.target.value)}
-                                            placeholder="Confirm Password"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-500 mb-1">Position</label>
+                            <input
+                                type="text"
+                                value="Administrator"
+                                disabled
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-slate-600 cursor-not-allowed"
+                            />
                         </div>
                     </div>
-                </div>
-            </div >
-        </div >
+                </section>
+
+                {/* Section 2: General & Branding */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h2 className="text-xl font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">General & Branding</h2>
+                    <div className="grid grid-cols-1 gap-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Website Name</label>
+                            <input
+                                type="text"
+                                name="websiteName"
+                                value={settings.websiteName}
+                                onChange={handleChange}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                placeholder="EastMy Media"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">Site Logo</label>
+                                <div className="flex items-center gap-4">
+                                    {settings.siteLogo && (
+                                        <img src={settings.siteLogo} alt="Logo" className="h-12 w-auto border rounded bg-slate-50" />
+                                    )}
+                                    <button
+                                        onClick={() => handleImageUpload('siteLogo')}
+                                        className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors border border-slate-300"
+                                    >
+                                        Set Logo URL
+                                    </button>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1">Recommended height: 40-60px</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">Favicon</label>
+                                <div className="flex items-center gap-4">
+                                    {settings.favicon && (
+                                        <img src={settings.favicon} alt="Favicon" className="h-8 w-8 border rounded bg-slate-50" />
+                                    )}
+                                    <button
+                                        onClick={() => handleImageUpload('favicon')}
+                                        className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors border border-slate-300"
+                                    >
+                                        Set Favicon URL
+                                    </button>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1">Recommended size: 32x32px or 64x64px</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Footer Description</label>
+                            <textarea
+                                name="footerDescription"
+                                value={settings.footerDescription}
+                                onChange={handleChange}
+                                rows={3}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all resize-none"
+                                placeholder="Brief description about the company..."
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Copyright Text</label>
+                            <input
+                                type="text"
+                                name="copyrightText"
+                                value={settings.copyrightText}
+                                onChange={handleChange}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                placeholder="© 2026 EastMy Media. All rights reserved."
+                            />
+                        </div>
+                    </div>
+                </section>
+
+                {/* Section 3: Contact Information */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h2 className="text-xl font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Contact Information</h2>
+                    <div className="grid grid-cols-1 gap-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Office Address</label>
+                            <textarea
+                                name="officeAddress"
+                                value={settings.officeAddress}
+                                onChange={handleChange}
+                                rows={3}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all resize-none"
+                                placeholder="Full office address..."
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">Official Email</label>
+                                <input
+                                    type="email"
+                                    name="officialEmail"
+                                    value={settings.officialEmail}
+                                    onChange={handleChange}
+                                    className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                    placeholder="info@eastmymedia.my"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">Office Phone</label>
+                                <input
+                                    type="text"
+                                    name="officePhone"
+                                    value={settings.officePhone}
+                                    onChange={handleChange}
+                                    className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                    placeholder="+60 88-123 456"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Mobile/WhatsApp Number</label>
+                            <input
+                                type="text"
+                                name="whatsappNumber"
+                                value={settings.whatsappNumber}
+                                onChange={handleChange}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                placeholder="60189023676 (No + or spaces for best results)"
+                            />
+                            <p className="text-xs text-slate-400 mt-1">This number controls the WhatsApp button destination.</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Google Maps Embed Link (src URL only)</label>
+                            <textarea
+                                name="googleMapsEmbed"
+                                value={settings.googleMapsEmbed}
+                                onChange={handleChange}
+                                rows={3}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all font-mono text-sm"
+                                placeholder="https://www.google.com/maps/embed?pb=..."
+                            />
+                            <p className="text-xs text-slate-400 mt-1">Paste the 'src' attribute from the Google Maps iframe code.</p>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Section 4: Menu & Frontend Control */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 border-l-4 border-l-[#01a981]">
+                    <h2 className="text-xl font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Menu & Frontend Control</h2>
+                    <div className="grid grid-cols-1 gap-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">"Packages" Menu Label</label>
+                            <input
+                                type="text"
+                                name="packagesMenuLabel"
+                                value={settings.packagesMenuLabel}
+                                onChange={handleChange}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                placeholder="Packages"
+                            />
+                            <p className="text-xs text-slate-400 mt-1">Change this to "Bundles", "Deals", etc. Updates immediately.</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Hero Section Title</label>
+                            <input
+                                type="text"
+                                name="heroTitle"
+                                value={settings.heroTitle}
+                                onChange={handleChange}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                placeholder="East Malaysia's Largest Integrated Media Network"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Hero Section Sub-Title</label>
+                            <textarea
+                                name="heroSubtitle"
+                                value={settings.heroSubtitle}
+                                onChange={handleChange}
+                                rows={2}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all resize-none"
+                                placeholder="From static billboards to digital LED screens..."
+                            />
+                        </div>
+                    </div>
+                </section>
+
+                {/* Section 5: Social Media Links */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h2 className="text-xl font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Social Media Links</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Facebook URL</label>
+                            <input
+                                type="url"
+                                name="facebookUrl"
+                                value={settings.facebookUrl}
+                                onChange={handleChange}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                placeholder="https://facebook.com/..."
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Instagram URL</label>
+                            <input
+                                type="url"
+                                name="instagramUrl"
+                                value={settings.instagramUrl}
+                                onChange={handleChange}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                placeholder="https://instagram.com/..."
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">TikTok URL</label>
+                            <input
+                                type="url"
+                                name="tiktokUrl"
+                                value={settings.tiktokUrl}
+                                onChange={handleChange}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                placeholder="https://tiktok.com/..."
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">LinkedIn URL</label>
+                            <input
+                                type="url"
+                                name="linkedinUrl"
+                                value={settings.linkedinUrl}
+                                onChange={handleChange}
+                                className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all"
+                                placeholder="https://linkedin.com/..."
+                            />
+                        </div>
+                    </div>
+                    <p className="text-sm text-slate-400 mt-4 italic">Leave blank to hide the icon on the website.</p>
+                </section>
+
+                {/* Section 6: WhatsApp Settings */}
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h2 className="text-xl font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">WhatsApp Settings</h2>
+                    <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Pre-filled Message</label>
+                        <textarea
+                            name="whatsappMessage"
+                            value={settings.whatsappMessage}
+                            onChange={handleChange}
+                            rows={3}
+                            className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#01a981] focus:border-transparent outline-none transition-all resize-none"
+                            placeholder="Hi EastMy Media, I saw your website and want to inquire about..."
+                        />
+                        <p className="text-xs text-slate-400 mt-1">This message will appear when users click the WhatsApp button.</p>
+                    </div>
+                </section>
+
+            </div>
+        </div>
     );
 }

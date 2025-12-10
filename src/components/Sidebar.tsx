@@ -11,7 +11,8 @@ import {
     FileText,
     UserCircle,
     UserPlus,
-    UserCog
+    UserCog,
+    Package
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { clsx } from 'clsx';
@@ -21,6 +22,7 @@ const navItems = [
     { name: 'Media Inventory', href: '/media', icon: MapIcon, roles: ['administrator', 'director', 'chief', 'manager', 'sales', 'admin'] },
     { name: 'Customers', href: '/customers', icon: Users, roles: ['administrator', 'director', 'chief', 'manager', 'sales'] },
     { name: 'Proposals', href: '/proposals', icon: FileText, roles: ['administrator', 'director', 'chief', 'manager', 'sales'] },
+    { name: 'Packages', href: '/packages', icon: Package, roles: ['administrator', 'director', 'chief', 'manager', 'sales'] },
     { name: 'Blog', href: '/blog', icon: FileText, roles: ['administrator', 'admin', 'editor'] },
     { name: 'User Management', href: '/users', icon: UserCog, roles: ['administrator'] },
     { name: 'Settings', href: '/settings', icon: Settings, roles: ['administrator', 'director', 'chief', 'manager'] },
