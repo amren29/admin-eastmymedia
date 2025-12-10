@@ -436,22 +436,40 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                             <div className="flex items-center pt-1">
                                 {/* Status Selector */}
                                 <label className="block text-sm font-medium text-gray-700 mr-4">Availability Status</label>
-                                <select
-                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                                    value={formData.availabilityStatus || (formData.available ? 'available' : 'booked')}
-                                    onChange={(e) => {
-                                        const status = e.target.value;
-                                        setFormData({
-                                            ...formData,
-                                            availabilityStatus: status,
-                                            available: status !== 'booked' // TBC is considered "available" for general filtering, Booked is not
-                                        });
-                                    }}
-                                >
-                                    <option value="available">Available</option>
-                                    <option value="tbc">TBC (To Be Confirmed)</option>
-                                    <option value="booked">Booked</option>
-                                </select>
+                                <div className="flex items-center gap-3">
+                                    {[
+                                        { value: 'available', label: 'Available', color: 'bg-green-500', hover: 'hover:bg-green-600' },
+                                        { value: 'tbc', label: 'TBC', color: 'bg-amber-400', hover: 'hover:bg-amber-500' },
+                                        { value: 'booked', label: 'Booked', color: 'bg-red-500', hover: 'hover:bg-red-600' }
+                                    ].map(status => {
+                                        const isSelected = (formData.availabilityStatus || (formData.available ? 'available' : 'booked')) === status.value;
+                                        return (
+                                            <button
+                                                key={status.value}
+                                                type="button"
+                                                onClick={() => {
+                                                    setFormData({
+                                                        ...formData,
+                                                        availabilityStatus: status.value,
+                                                        available: status.value !== 'booked'
+                                                    });
+                                                }}
+                                                className={`
+                                                    relative group flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all
+                                                    ${isSelected
+                                                        ? 'bg-white border-gray-300 ring-2 ring-offset-2 ring-blue-500 shadow-sm'
+                                                        : 'bg-gray-50 border-transparent hover:bg-gray-100'
+                                                    }
+                                                `}
+                                            >
+                                                <span className={`w-3 h-3 rounded-full ${status.color}`}></span>
+                                                <span className={`text-sm font-medium ${isSelected ? 'text-gray-900' : 'text-gray-500'}`}>
+                                                    {status.label}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
                     </div>
