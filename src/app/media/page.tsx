@@ -17,6 +17,7 @@ interface Billboard {
     type: string;
     price: number;
     available: boolean;
+    availabilityStatus?: 'available' | 'booked' | 'tbc';
     verificationStatus?: 'draft' | 'pending' | 'published' | 'rejected';
     size?: string;
     rentalRates?: {
@@ -52,7 +53,7 @@ export default function MediaPage() {
     const [filterPrice, setFilterPrice] = useState('All');
     const [filterSize, setFilterSize] = useState('All');
 
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'skuId', direction: 'asc' });
 
     // Derived unique values for dropdowns
     const uniqueTypes = ['All', ...Array.from(new Set(media.map(m => m.type || 'Unspecified'))).sort()];
@@ -69,7 +70,9 @@ export default function MediaPage() {
                 // Try to extract numeric part for natural sort if possible, else return string
                 return id.toLowerCase();
             case 'status':
-                return item.available ? 1 : 0; // Booked (0) vs Available (1)
+                const statusA = item.availabilityStatus || (item.available ? 'available' : 'booked');
+                const statusOrder = { 'available': 2, 'tbc': 1, 'booked': 0 };
+                return statusOrder[statusA as keyof typeof statusOrder] ?? 0;
             case 'approval':
                 // Custom order: pending < draft < rejected < published
                 const status = item.verificationStatus || 'published';
@@ -99,8 +102,9 @@ export default function MediaPage() {
         const matchesSize = filterSize === 'All' || (item.size || 'Unspecified') === filterSize;
         const matchesStatus = filterStatus === 'All'
             ? true
-            : filterStatus === 'Available' ? item.available
-                : !item.available; // Booked
+            : filterStatus === 'TBC' ? item.availabilityStatus === 'tbc'
+                : filterStatus === 'Available' ? (item.availabilityStatus === 'available' || (!item.availabilityStatus && item.available))
+                    : (item.availabilityStatus === 'booked' || (!item.availabilityStatus && !item.available)); // Booked
 
         const matchesVerification = filterVerification === 'All' || (item.verificationStatus || 'published') === filterVerification;
 
@@ -553,6 +557,7 @@ export default function MediaPage() {
                             >
                                 <option value="All">All Status</option>
                                 <option value="Available">Available</option>
+                                <option value="TBC">TBC</option>
                                 <option value="Booked">Booked</option>
                             </select>
 
@@ -714,10 +719,31 @@ export default function MediaPage() {
                                             })()}
                                         </td>
                                         <td className="p-4 px-6 align-middle">
-                                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${item.available ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20'}`}>
-                                                <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${item.available ? 'bg-green-600' : 'bg-red-600'}`}></span>
-                                                {item.available ? 'Available' : 'Booked'}
-                                            </span>
+                                            {(() => {
+                                                const status = item.availabilityStatus || (item.available ? 'available' : 'booked');
+                                                if (status === 'tbc') {
+                                                    return (
+                                                        <span className="inline-flex items-center rounded-full bg-yellow-50 px-2.5 py-0.5 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+                                                            <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-yellow-600"></span>
+                                                            TBC
+                                                        </span>
+                                                    );
+                                                }
+                                                if (status === 'available') {
+                                                    return (
+                                                        <span className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                                                            <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-green-600"></span>
+                                                            Available
+                                                        </span>
+                                                    );
+                                                }
+                                                return (
+                                                    <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">
+                                                        <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-red-600"></span>
+                                                        Booked
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="p-4 px-6 align-middle text-right">
                                             <div className="flex justify-end gap-2">

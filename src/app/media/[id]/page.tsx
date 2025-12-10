@@ -106,6 +106,7 @@ export default function MediaFormPage({ params }: MediaFormProps) {
         location: '',
         type: 'Static', // Static, LED Screen, Roadside Bunting, Car Wrap
         available: true,
+        availabilityStatus: 'available',
         verificationStatus: 'published', // Default, will be handled by logic
         totalPanel: 1,
 
@@ -153,7 +154,8 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                 setFormData({
                     ...formData,
                     ...data,
-                    rentalRates: data.rentalRates || []
+                    rentalRates: data.rentalRates || [],
+                    availabilityStatus: data.availabilityStatus || (data.available ? 'available' : 'booked')
                 } as any);
                 // If existing media has no status, default to published for UI
                 if (!data.verificationStatus) {
@@ -329,6 +331,7 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                 latitude,
                 longitude,
                 verificationStatus: finalStatus,
+                availabilityStatus: formData.availabilityStatus,
                 updatedAt: new Date().toISOString(),
             };
 
@@ -430,15 +433,26 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                             />
                         </div>
                         <div className="flex items-center pt-6">
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    className="rounded border-gray-300 text-teal-600 focus:ring-teal-500 h-4 w-4"
-                                    checked={formData.available}
-                                    onChange={(e) => setFormData({ ...formData, available: e.target.checked })}
-                                />
-                                <span className="text-sm font-medium text-gray-700">Available for booking</span>
-                            </label>
+                            <div className="flex items-center pt-1">
+                                {/* Status Selector */}
+                                <label className="block text-sm font-medium text-gray-700 mr-4">Availability Status</label>
+                                <select
+                                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                    value={formData.availabilityStatus || (formData.available ? 'available' : 'booked')}
+                                    onChange={(e) => {
+                                        const status = e.target.value;
+                                        setFormData({
+                                            ...formData,
+                                            availabilityStatus: status,
+                                            available: status !== 'booked' // TBC is considered "available" for general filtering, Booked is not
+                                        });
+                                    }}
+                                >
+                                    <option value="available">Available</option>
+                                    <option value="tbc">TBC (To Be Confirmed)</option>
+                                    <option value="booked">Booked</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
