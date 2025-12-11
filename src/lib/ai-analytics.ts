@@ -150,3 +150,75 @@ export function generateTrafficReport(dailyVolume: number, profileType: string =
         hourlyBreakdown
     };
 }
+
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from './firebase';
+
+export async function fetchTrafficReport(dailyVolume: number, profileType: string, date: Date, billboardId: string = 'default'): Promise<TrafficReport> {
+    const simulatedReport = generateTrafficReport(dailyVolume, profileType, date, billboardId);
+
+    // Safety check for client-side DB
+    if (!db) return simulatedReport;
+
+    try {
+        const dateStr = date.toISOString().split('T')[0];
+        const q = query(
+            collection(db, 'billboards', billboardId, 'traffic_history'),
+            where('date', '==', dateStr)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            return simulatedReport;
+        }
+
+        // Merge Real Data
+        const realDataMap = new Map();
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Ensure we have required fields
+            if (typeof data.hour === 'number') {
+                realDataMap.set(data.hour, data);
+            }
+        });
+
+        const updatedBreakdown = simulatedReport.hourlyBreakdown.map(item => {
+            if (realDataMap.has(item.hour)) {
+                const real = realDataMap.get(item.hour);
+
+                // Recalculate multiplier for score
+                let multiplier = 1.0;
+                if (real.congestionLevel === 'Severe') multiplier = 2.5;
+                else if (real.congestionLevel === 'High') multiplier = 1.8;
+                else if (real.congestionLevel === 'Moderate') multiplier = 1.2;
+
+                return {
+                    ...item,
+                    trafficVolume: real.trafficVolume,
+                    congestionLevel: real.congestionLevel as any,
+                    averageSpeed: real.averageSpeed,
+                    impressionScore: Math.round(real.trafficVolume * multiplier)
+                };
+            }
+            return item;
+        });
+
+        // Recalculate Totals based on merged data
+        const newTotalVolume = updatedBreakdown.reduce((sum, item) => sum + item.trafficVolume, 0);
+        const newTotalScore = updatedBreakdown.reduce((sum, item) => sum + item.impressionScore, 0);
+        const newPeak = updatedBreakdown.reduce((max, current) => current.trafficVolume > max.trafficVolume ? current : max, updatedBreakdown[0]);
+
+        return {
+            dailyTotal: newTotalVolume,
+            peakHour: newPeak.hour,
+            peakVolume: newPeak.trafficVolume,
+            congestionImpactScore: Math.round(((newTotalScore - newTotalVolume) / newTotalVolume) * 100) || 0,
+            hourlyBreakdown: updatedBreakdown
+        };
+
+    } catch (error) {
+        console.error("Error fetching real traffic data:", error);
+        return simulatedReport;
+    }
+}

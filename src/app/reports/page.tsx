@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { getBillboards, Billboard } from '@/lib/firestore-data';
-import { generateTrafficReport, TrafficReport } from '@/lib/ai-analytics';
+import { generateTrafficReport, fetchTrafficReport, TrafficReport } from '@/lib/ai-analytics';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, ReferenceLine } from 'recharts';
@@ -37,15 +37,19 @@ export default function ReportsPage() {
 
         setConverting(true);
         // Simulate "AI Processing" delay for effect
-        setTimeout(() => {
+        // Simulate "AI Processing" delay for effect, but now also fetch real data
+        setTimeout(async () => {
             // Default volume if not set or invalid
             const traffic = billboard.trafficDaily || 50000;
             const profile = billboard.trafficProfile || 'commuter';
 
-            const result = generateTrafficReport(traffic, profile, new Date(date), billboard.id);
+            // Switch to async fetch
+            // const result = generateTrafficReport(traffic, profile, new Date(date), billboard.id);
+            const result = await fetchTrafficReport(traffic, profile, new Date(date), billboard.id);
+
             setReport(result);
             setConverting(false);
-        }, 1500);
+        }, 500); // Reduced artificial delay since we have real network latency now
     };
 
     if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-teal-600" /></div>;
