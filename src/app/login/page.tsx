@@ -24,7 +24,7 @@ export default function LoginPage() {
             router.push('/');
         } catch (err: any) {
             console.error(err);
-            setError('Failed to login. Please check your credentials.');
+            setError(`Failed to login: ${err.message}`);
         } finally {
             setLoading(false);
         }

@@ -68,8 +68,8 @@ export async function GET(req: NextRequest) {
             const url = `https://routes.googleapis.com/directions/v2:computeRoutes`;
 
             const body = {
-                origin: { location: { latLng: origin } },
-                destination: { location: { latLng: dest } },
+                origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
+                destination: { location: { latLng: { latitude: dest.lat, longitude: dest.lng } } },
                 travelMode: "DRIVE",
                 routingPreference: "TRAFFIC_AWARE",
                 computeAlternativeRoutes: false,

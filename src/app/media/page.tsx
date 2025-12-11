@@ -148,16 +148,20 @@ export default function MediaPage() {
         fetchMedia();
     }, []);
 
+    const [error, setError] = useState<string | null>(null);
+
     const fetchMedia = async () => {
         try {
+            setError(null);
             const querySnapshot = await getDocs(collection(db, 'billboards'));
             const mediaList = querySnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             } as Billboard));
             setMedia(mediaList);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error fetching media:", error);
+            setError(`Failed to load media: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -476,6 +480,14 @@ export default function MediaPage() {
                     </Link>
                 </div>
             </div>
+
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    <span>{error}</span>
+                    <button onClick={fetchMedia} className="ml-auto text-sm font-medium hover:underline">Retry</button>
+                </div>
+            )}
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-200 bg-slate-50/50 space-y-4">
