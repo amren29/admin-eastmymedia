@@ -163,7 +163,6 @@ export async function GET(req: NextRequest) {
 
     } catch (error: any) { // Explicitly type error as 'any' or 'unknown'
         console.error('Cron job error:', error);
-        lastError = error.message || String(error); // Capture the main error
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
