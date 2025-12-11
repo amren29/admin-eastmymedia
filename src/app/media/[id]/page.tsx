@@ -134,7 +134,6 @@ export default function MediaFormPage({ params }: MediaFormProps) {
         district: '',   // For Car Wrap
         landmark: '',
         targetMarket: '',
-        targetMarket: '',
         traffic: '',
         trafficProfile: 'commuter', // Default profile
 
