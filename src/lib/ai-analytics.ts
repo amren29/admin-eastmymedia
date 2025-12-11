@@ -222,3 +222,77 @@ export async function fetchTrafficReport(dailyVolume: number, profileType: strin
         return simulatedReport;
     }
 }
+
+export interface DailyTrendData {
+    date: string;
+    totalVolume: number;
+    avgCongestion: string;
+    avgSpeed: number;
+    impressionScore: number;
+    isProjected: boolean;
+}
+
+export interface CampaignReport {
+    startDate: string;
+    endDate: string;
+    totalCampaignVolume: number;
+    totalImpressionScore: number;
+    averageDailyVolume: number;
+    peakDay: string;
+    peakDayVolume: number;
+    dailyTrend: DailyTrendData[];
+    profileUsed: string;
+}
+
+export async function fetchCampaignReport(dailyVolume: number, profileType: string, startDate: Date, endDate: Date, billboardId: string = 'default'): Promise<CampaignReport> {
+    const trendData: DailyTrendData[] = [];
+    const loopDate = new Date(startDate);
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Iterate through each day
+    while (loopDate <= endDate) {
+        const dateStr = loopDate.toISOString().split('T')[0];
+
+        // Fetch daily report (this handles real vs simulated logic internally)
+        const dailyReport = await fetchTrafficReport(dailyVolume, profileType, new Date(loopDate), billboardId);
+
+        // Calculate daily averages/sums
+        const dayVolume = dailyReport.dailyTotal;
+        const dayScore = dailyReport.hourlyBreakdown.reduce((sum, h) => sum + h.impressionScore, 0);
+        const dayAvgSpeed = Math.round(dailyReport.hourlyBreakdown.reduce((sum, h) => sum + h.averageSpeed, 0) / 24);
+
+        // Determine "Average Congestion" for the day
+        // Simple logic: if any hour was Severe, day is Severe. If >3 hours High, High. etc.
+        // Or just take the mode. Let's take the peak hour congestion.
+        const peakHour = dailyReport.hourlyBreakdown.reduce((max, curr) => curr.trafficVolume > max.trafficVolume ? curr : max, dailyReport.hourlyBreakdown[0]);
+
+        trendData.push({
+            date: dateStr,
+            totalVolume: dayVolume,
+            impressionScore: dayScore,
+            avgSpeed: dayAvgSpeed,
+            avgCongestion: peakHour.congestionLevel,
+            isProjected: dateStr > todayStr
+        });
+
+        // Next Day
+        loopDate.setDate(loopDate.getDate() + 1);
+    }
+
+    // Aggregate Campaign Metrics
+    const totalCampaignVolume = trendData.reduce((sum, d) => sum + d.totalVolume, 0);
+    const totalImpressionScore = trendData.reduce((sum, d) => sum + d.impressionScore, 0);
+    const peakDayData = trendData.reduce((max, curr) => curr.totalVolume > max.totalVolume ? curr : max, trendData[0]);
+
+    return {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        totalCampaignVolume,
+        totalImpressionScore,
+        averageDailyVolume: Math.round(totalCampaignVolume / trendData.length),
+        peakDay: peakDayData.date,
+        peakDayVolume: peakDayData.totalVolume,
+        dailyTrend: trendData,
+        profileUsed: profileType
+    };
+}
