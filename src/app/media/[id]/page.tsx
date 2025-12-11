@@ -134,7 +134,9 @@ export default function MediaFormPage({ params }: MediaFormProps) {
         district: '',   // For Car Wrap
         landmark: '',
         targetMarket: '',
+        targetMarket: '',
         traffic: '',
+        trafficProfile: 'commuter', // Default profile
 
         // Pricing
         rentalRates: [] as RentalRate[]
@@ -795,6 +797,21 @@ export default function MediaFormPage({ params }: MediaFormProps) {
                                 value={formData.traffic}
                                 onChange={(e) => setFormData({ ...formData, traffic: e.target.value })}
                             />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Traffic Profile (AI Model)</label>
+                            <select
+                                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                value={formData.trafficProfile || 'commuter'}
+                                onChange={(e) => setFormData({ ...formData, trafficProfile: e.target.value })}
+                            >
+                                <option value="commuter">Commuter Route (Peak 7-9am, 5-7pm)</option>
+                                <option value="retail">Shopping/Retail (Peak Wknd 11am-9pm)</option>
+                                <option value="highway">Highway (Steady Flow + Holiday Spikes)</option>
+                                <option value="tourist">Tourist Spot (Seasonal/Wknd Spikes)</option>
+                                <option value="residential">Residential (Morning Out / Evening In)</option>
+                            </select>
+                            <p className="mt-1 text-xs text-gray-500">Used for predictive analytics calculations.</p>
                         </div>
                     </div>
                 </div>
