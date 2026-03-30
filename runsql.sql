@@ -1,5 +1,5 @@
 -- Users table (admin panel users)
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   uid TEXT UNIQUE NOT NULL,
   email TEXT NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE users (
 );
 
 -- OTPs table (signup verification)
-CREATE TABLE otps (
+CREATE TABLE IF NOT EXISTS otps (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   otp TEXT NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE otps (
 );
 
 -- Traffic history table (for reports/cron)
-CREATE TABLE traffic_history (
+CREATE TABLE IF NOT EXISTS traffic_history (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   billboard_id UUID REFERENCES billboards(id),
   date TEXT,
@@ -53,23 +53,47 @@ ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE traffic_history ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Public read users" ON users;
 CREATE POLICY "Public read users" ON users FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public insert users" ON users;
 CREATE POLICY "Public insert users" ON users FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Public update users" ON users;
 CREATE POLICY "Public update users" ON users FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Public delete users" ON users;
+CREATE POLICY "Public delete users" ON users FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Public all otps" ON otps;
 CREATE POLICY "Public all otps" ON otps FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Public read traffic_history" ON traffic_history;
 CREATE POLICY "Public read traffic_history" ON traffic_history FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public insert traffic_history" ON traffic_history;
 CREATE POLICY "Public insert traffic_history" ON traffic_history FOR INSERT WITH CHECK (true);
 
 -- Allow updates and deletes on existing tables
+DROP POLICY IF EXISTS "Public update billboards" ON billboards;
 CREATE POLICY "Public update billboards" ON billboards FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Public insert billboards" ON billboards;
 CREATE POLICY "Public insert billboards" ON billboards FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Public delete billboards" ON billboards;
 CREATE POLICY "Public delete billboards" ON billboards FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Public update proposals" ON proposals;
 CREATE POLICY "Public update proposals" ON proposals FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Public delete proposals" ON proposals;
 CREATE POLICY "Public delete proposals" ON proposals FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Public update customers" ON customers;
 CREATE POLICY "Public update customers" ON customers FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Public delete customers" ON customers;
 CREATE POLICY "Public delete customers" ON customers FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Public insert posts" ON posts;
 CREATE POLICY "Public insert posts" ON posts FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Public update posts" ON posts;
 CREATE POLICY "Public update posts" ON posts FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Public delete posts" ON posts;
 CREATE POLICY "Public delete posts" ON posts FOR DELETE USING (true);
+
+DROP POLICY IF EXISTS "Public update settings" ON settings;
 CREATE POLICY "Public update settings" ON settings FOR UPDATE USING (true);
-CREATE POLICY "Public delete users" ON users FOR DELETE USING (true);
