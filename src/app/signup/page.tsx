@@ -47,6 +47,7 @@ export default function SignupPage() {
         {
           email,
           otp: otpCode,
+          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
           created_at: new Date().toISOString(),
         },
         { onConflict: "email" }
