@@ -37,7 +37,7 @@ export default function PendingApprovalPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
+    <div className="w-full max-w-md">
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md text-center">
         <ClockIcon />
         <h1 className="mt-4 text-2xl font-bold text-gray-900">

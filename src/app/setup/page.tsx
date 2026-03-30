@@ -111,7 +111,7 @@ export default function SetupPage() {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100">
+      <div className="w-full max-w-md">
         <p className="text-gray-500">Checking configuration...</p>
       </div>
     );
@@ -119,7 +119,7 @@ export default function SetupPage() {
 
   if (alreadyConfigured) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
+      <div className="w-full max-w-md">
         <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md text-center">
           <UserCogIcon />
           <h1 className="mt-4 text-2xl font-bold text-gray-900">
@@ -142,7 +142,7 @@ export default function SetupPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
+      <div className="w-full max-w-md">
         <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md text-center">
           <svg
             className="mx-auto h-16 w-16 text-green-500"
@@ -176,7 +176,7 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
+    <div className="w-full max-w-md">
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
         <div className="mb-4">
           <UserCogIcon />

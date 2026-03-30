@@ -31,7 +31,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
 
   if (isAuthPage || isPendingPage) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen w-full items-center justify-center bg-gray-100 p-4">
         {children}
       </div>
     );

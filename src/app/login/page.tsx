@@ -37,8 +37,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="w-full px-4">
-      <div className="w-full max-w-md mx-auto rounded-lg bg-white p-8 shadow-md">
+    <div className="w-full max-w-md">
+      <div className="rounded-lg bg-white p-8 shadow-md">
         <h1 className="mb-6 text-center text-2xl font-bold text-gray-900">
           Admin Login
         </h1>
